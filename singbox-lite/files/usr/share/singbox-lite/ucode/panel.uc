@@ -97,7 +97,7 @@ function update_dashboard(cfg, opts) {
 		write_dashboard_status('error', { error: '下载文件为空' });
 		return { ok: false, error: '下载文件为空' };
 	}
-	if (system([ 'unzip', '-q', '-o', zip, '-d', dir ]) != 0) {
+	if (system([ 'unzip', '-q', '-o', zip, '-d', dir ]) != 0 && system([ 'unzip', '-q', zip, '-d', dir ]) != 0) {
 		write_dashboard_status('error', { error: '解包失败' });
 		return { ok: false, error: '解包失败' };
 	}
