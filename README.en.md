@@ -26,7 +26,18 @@ A lightweight, bare-core sing-box manager for LuCI. It converts airport subscrip
 
 ```sh
 apk add --allow-untrusted ./singbox-lite-*.apk ./luci-app-singbox-lite-*.apk
+apk add --allow-untrusted ./luci-i18n-singbox-lite-zh-cn-*.apk   # optional: Simplified Chinese UI
 ```
+
+`apk add` does not execute the `uci-defaults` shipped in the language pack, so the language is only registered on the next boot. Activate it explicitly, otherwise the UI stays English:
+
+```sh
+/etc/uci-defaults/luci-i18n-singbox-lite-zh-cn
+uci set luci.main.lang=zh_cn && uci commit luci
+rm -f /tmp/luci-indexcache
+```
+
+Then force-reload the browser (Ctrl+F5): page strings come from `/cgi-bin/luci/admin/translations/<lang>`, which carries no version parameter.
 
 Open **Services → sing-box Lite**, install/update the core, add subscriptions/nodes, save & check, then start.
 

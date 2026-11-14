@@ -25,11 +25,22 @@
 
 ## 安装
 
-从 Release 下载 `.apk` 后：
+从 Release 下载 `.apk` 后（中文语言包可选，不装则界面为英文）：
 
 ```sh
 apk add --allow-untrusted ./singbox-lite-*.apk ./luci-app-singbox-lite-*.apk
+apk add --allow-untrusted ./luci-i18n-singbox-lite-zh-cn-*.apk
 ```
+
+装了语言包还要**激活**一次——`apk add` 不会执行包里的 `uci-defaults`，语言注册脚本要等重启才跑，所以装完界面可能仍然全英文：
+
+```sh
+/etc/uci-defaults/luci-i18n-singbox-lite-zh-cn    # 注册简体中文
+uci set luci.main.lang=zh_cn && uci commit luci
+rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好的旧菜单树
+```
+
+然后在浏览器 **Ctrl+F5 强刷**：页面文案来自 `/cgi-bin/luci/admin/translations/<lang>`，该脚本没有版本号，普通刷新拿到的可能是旧缓存。
 
 刷新 LuCI 页面，进入 **服务 → sing-box Lite**。首次使用：
 
