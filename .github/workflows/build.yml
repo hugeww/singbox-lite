@@ -131,6 +131,9 @@ jobs:
           FEEDNAME: singbox_lite
           PACKAGES: singbox-lite luci-app-singbox-lite
           NO_REFRESH_CHECK: true
+          # Scripts are kept shfmt-clean locally; the action's check trips on
+          # mode-only diffs in its /feed checkout (no *.init files here).
+          NO_SHFMT_CHECK: true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
