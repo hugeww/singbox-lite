@@ -9,7 +9,7 @@ chmod 700 /etc/singbox-lite
 # Ensure the built-in rule-set sections exist after upgrades.
 ensure_ruleset() {
 	local section="$1" name="$2" source="$3" target="$4"
-	uci -q get "singbox-lite.$section" >/dev/null 2>&1 && return 0
+	uci -q get "singbox-lite.$section" > /dev/null 2>&1 && return 0
 	uci set "singbox-lite.$section=ruleset"
 	uci set "singbox-lite.$section.kind=builtin"
 	uci set "singbox-lite.$section.name=$name"
@@ -26,26 +26,26 @@ ensure_ruleset rs_builtin_social '社交' builtin_social default
 ensure_ruleset rs_builtin_dev '开发' builtin_dev default
 
 # Ensure the version-pin sections exist after upgrades.
-if ! uci -q get singbox-lite.version >/dev/null 2>&1; then
+if ! uci -q get singbox-lite.version > /dev/null 2>&1; then
 	uci set singbox-lite.version=version
 	uci set singbox-lite.version.plugin_tag=''
 fi
-if ! uci -q get singbox-lite.version_core >/dev/null 2>&1; then
+if ! uci -q get singbox-lite.version_core > /dev/null 2>&1; then
 	uci set singbox-lite.version_core=version_core
 	uci set singbox-lite.version_core.core_tag=''
 fi
 
 # Ensure the Clash API panel section exists and has a secret.
-if ! uci -q get singbox-lite.panel >/dev/null 2>&1; then
+if ! uci -q get singbox-lite.panel > /dev/null 2>&1; then
 	uci set singbox-lite.panel=panel
 	uci set singbox-lite.panel.enabled=1
 	uci set singbox-lite.panel.listen=0.0.0.0
 	uci set singbox-lite.panel.port=9090
 fi
 if [ -z "$(uci -q get singbox-lite.panel.secret)" ]; then
-	uci set singbox-lite.panel.secret="$(head -c 16 /dev/urandom 2>/dev/null | md5sum 2>/dev/null | cut -c1-24)"
+	uci set singbox-lite.panel.secret="$(head -c 16 /dev/urandom 2> /dev/null | md5sum 2> /dev/null | cut -c1-24)"
 	if [ -z "$(uci -q get singbox-lite.panel.secret)" ]; then
-		uci set singbox-lite.panel.secret="$(date +%s 2>/dev/null | md5sum 2>/dev/null | cut -c1-24)"
+		uci set singbox-lite.panel.secret="$(date +%s 2> /dev/null | md5sum 2> /dev/null | cut -c1-24)"
 	fi
 fi
 if [ -z "$(uci -q get singbox-lite.panel.dashboard)" ]; then
@@ -53,11 +53,11 @@ if [ -z "$(uci -q get singbox-lite.panel.dashboard)" ]; then
 fi
 
 # Migrate the removed mixed inbound to the TUN inbound.
-uci -q get singbox-lite.inbound >/dev/null 2>&1 || uci set singbox-lite.inbound=inbound
-uci -q get singbox-lite.inbound.address >/dev/null 2>&1 || uci set singbox-lite.inbound.address='172.19.0.1/30,fdfe:dcba:9876::1/126'
-uci -q get singbox-lite.inbound.mtu >/dev/null 2>&1 || uci set singbox-lite.inbound.mtu='9000'
-uci -q get singbox-lite.inbound.strict_route >/dev/null 2>&1 || uci set singbox-lite.inbound.strict_route='0'
-uci -q get singbox-lite.inbound.exclude_cn >/dev/null 2>&1 || uci set singbox-lite.inbound.exclude_cn='1'
+uci -q get singbox-lite.inbound > /dev/null 2>&1 || uci set singbox-lite.inbound=inbound
+uci -q get singbox-lite.inbound.address > /dev/null 2>&1 || uci set singbox-lite.inbound.address='172.19.0.1/30,fdfe:dcba:9876::1/126'
+uci -q get singbox-lite.inbound.mtu > /dev/null 2>&1 || uci set singbox-lite.inbound.mtu='9000'
+uci -q get singbox-lite.inbound.strict_route > /dev/null 2>&1 || uci set singbox-lite.inbound.strict_route='0'
+uci -q get singbox-lite.inbound.exclude_cn > /dev/null 2>&1 || uci set singbox-lite.inbound.exclude_cn='1'
 uci -q delete singbox-lite.inbound.listen
 uci -q delete singbox-lite.inbound.port
 uci -q delete singbox-lite.inbound.auth
