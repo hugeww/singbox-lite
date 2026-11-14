@@ -3,86 +3,454 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Project-Id-Version: luci-app-singbox-lite\n"
+"Last-Translator: singbox-lite contributors\n"
+"MIME-Version: 1.0\n"
 
-msgid "sing-box Lite"
+msgid "Actions"
 msgstr ""
 
-msgid "Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates."
+msgid "Add airport or self-hosted subscriptions. Base64/URI lists, sing-box JSON and Clash YAML (with yq) are supported."
 msgstr ""
 
-msgid "Status"
+msgid "All DNS through proxy"
 msgstr ""
 
-msgid "Running"
+msgid "Auto"
 msgstr ""
 
-msgid "Stopped"
+msgid "Auto / first member"
 msgstr ""
 
-msgid "Start"
-msgstr ""
-
-msgid "Stop"
-msgstr ""
-
-msgid "Restart"
-msgstr ""
-
-msgid "Core"
-msgstr ""
-
-msgid "Nodes"
-msgstr ""
-
-msgid "Subscriptions"
-msgstr ""
-
-msgid "Rule Sets & Routing"
-msgstr ""
-
-msgid "Egress Groups"
-msgstr ""
-
-msgid "Settings"
-msgstr ""
-
-msgid "Logs"
-msgstr ""
-
-msgid "Direct"
-msgstr ""
-
-msgid "Default group"
+msgid "Auto detect"
 msgstr ""
 
 msgid "Auto group"
 msgstr ""
 
-msgid "US group"
+msgid "Auto test URL"
 msgstr ""
 
-msgid "Japan group"
+msgid "Auto test interval"
 msgstr ""
 
-msgid "Hong Kong group"
+msgid "Auto test tolerance (ms)"
 msgstr ""
 
-msgid "Other countries"
+msgid "Autostart on boot"
 msgstr ""
 
-msgid "Native group"
+msgid "Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates."
+msgstr ""
+
+msgid "Built-in (read-only content)"
+msgstr ""
+
+msgid "Built-in Egress Groups"
+msgstr ""
+
+msgid "Built-in groups are based on node country; the native group is manual and never auto-selected. Custom groups select nodes explicitly."
+msgstr ""
+
+msgid "Built-in rule sets are read-only; custom rule sets are evaluated before built-in ones. Select the egress group each rule set should use."
+msgstr ""
+
+msgid "Check Latest"
+msgstr ""
+
+msgid "Check failed"
+msgstr ""
+
+msgid "Check yq"
+msgstr ""
+
+msgid "Clash YAML (yq)"
+msgstr ""
+
+msgid "Clear"
+msgstr ""
+
+msgid "Cleared"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "Config"
+msgstr ""
+
+msgid "Config Preview"
+msgstr ""
+
+msgid "Config check failed"
+msgstr ""
+
+msgid "Config state"
+msgstr ""
+
+msgid "Configuration saved. Restart the service to apply it."
+msgstr ""
+
+msgid "Core"
+msgstr ""
+
+msgid "Core download mirror"
+msgstr ""
+
+msgid "Core rollback"
+msgstr ""
+
+msgid "Core source"
+msgstr ""
+
+msgid "Core update"
+msgstr ""
+
+msgid "Core version pin"
+msgstr ""
+
+msgid "Country"
+msgstr ""
+
+msgid "Country and native-IP overrides are saved by node ID and survive subscription refresh."
+msgstr ""
+
+msgid "Custom Egress Groups"
+msgstr ""
+
+msgid "Custom Rule Sets"
+msgstr ""
+
+msgid "DNS"
+msgstr ""
+
+msgid "DNS mode"
+msgstr ""
+
+msgid "Default group"
+msgstr ""
+
+msgid "Default group target"
+msgstr ""
+
+msgid "Default node"
+msgstr ""
+
+msgid "Detected Nodes"
+msgstr ""
+
+msgid "Direct"
+msgstr ""
+
+msgid "Egress Groups"
+msgstr ""
+
+msgid "Egress group"
+msgstr ""
+
+msgid "Enable username/password"
 msgstr ""
 
 msgid "Enabled"
 msgstr ""
 
+msgid "Format"
+msgstr ""
+
+msgid "Hong Kong"
+msgstr ""
+
+msgid "Hong Kong default node"
+msgstr ""
+
+msgid "Hong Kong group"
+msgstr ""
+
+msgid "Hong Kong name keywords"
+msgstr ""
+
+msgid "ID"
+msgstr ""
+
+msgid "In sync"
+msgstr ""
+
+msgid "Inbound"
+msgstr ""
+
+msgid "Inline domain/IP list"
+msgstr ""
+
+msgid "Inline domains/IPs"
+msgstr ""
+
+msgid "Install failed"
+msgstr ""
+
+msgid "Install yq"
+msgstr ""
+
+msgid "Installed"
+msgstr ""
+
+msgid "Japan"
+msgstr ""
+
+msgid "Japan default node"
+msgstr ""
+
+msgid "Japan group"
+msgstr ""
+
+msgid "Japan name keywords"
+msgstr ""
+
+msgid "Last update"
+msgstr ""
+
+msgid "Listen address"
+msgstr ""
+
+msgid "Listen port"
+msgstr ""
+
+msgid "Local .srs path"
+msgstr ""
+
+msgid "Local path"
+msgstr ""
+
+msgid "Log level"
+msgstr ""
+
+msgid "Log max size (KB)"
+msgstr ""
+
+msgid "Logs"
+msgstr ""
+
+msgid "Main"
+msgstr ""
+
+msgid "Managed download"
+msgstr ""
+
+msgid "Manual Nodes"
+msgstr ""
+
+msgid "Member nodes"
+msgstr ""
+
 msgid "Name"
+msgstr ""
+
+msgid "Native IP"
+msgstr ""
+
+msgid "Native IP name keywords"
+msgstr ""
+
+msgid "Native default node"
+msgstr ""
+
+msgid "Native group"
+msgstr ""
+
+msgid "Native nodes are excluded from URLTest groups."
+msgstr ""
+
+msgid "No"
+msgstr ""
+
+msgid "No log output."
+msgstr ""
+
+msgid "No nodes yet. Update a subscription or add a manual node."
+msgstr ""
+
+msgid "Nodes"
+msgstr ""
+
+msgid "Not installed; Clash YAML subscriptions need yq"
+msgstr ""
+
+msgid "Order"
+msgstr ""
+
+msgid "Other"
+msgstr ""
+
+msgid "Other countries"
+msgstr ""
+
+msgid "Other countries default node"
+msgstr ""
+
+msgid "Overview"
+msgstr ""
+
+msgid "Password"
+msgstr ""
+
+msgid "Paste share links or complete sing-box outbound JSON."
+msgstr ""
+
+msgid "Path"
+msgstr ""
+
+msgid "Preview Config"
+msgstr ""
+
+msgid "Refresh"
+msgstr ""
+
+msgid "Refresh interval (hours)"
+msgstr ""
+
+msgid "Remote .srs URL"
+msgstr ""
+
+msgid "Remote URL"
+msgstr ""
+
+msgid "Restart"
+msgstr ""
+
+msgid "Restart after scheduled refresh"
+msgstr ""
+
+msgid "Restart failed"
+msgstr ""
+
+msgid "Restarted"
+msgstr ""
+
+msgid "Rollback Core"
+msgstr ""
+
+msgid "Rollback failed"
+msgstr ""
+
+msgid "Rolled back to "
+msgstr ""
+
+msgid "Rule Sets & Routing"
+msgstr ""
+
+msgid "Rule set"
+msgstr ""
+
+msgid "Rule sets"
+msgstr ""
+
+msgid "Rule-set data"
+msgstr ""
+
+msgid "Running"
+msgstr ""
+
+msgid "Save & Check Config"
+msgstr ""
+
+msgid "Saved. Restart the service to apply."
+msgstr ""
+
+msgid "Saved; restart required"
+msgstr ""
+
+msgid "Scheduled subscription refresh"
+msgstr ""
+
+msgid "Selector (manual)"
+msgstr ""
+
+msgid "Server"
+msgstr ""
+
+msgid "Service"
+msgstr ""
+
+msgid "Service, inbound, DNS, automatic refresh and core settings."
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Share Link / JSON"
+msgstr ""
+
+msgid "Source"
+msgstr ""
+
+msgid "Split: CN direct, rest proxy"
+msgstr ""
+
+msgid "Start"
+msgstr ""
+
+msgid "Start failed"
+msgstr ""
+
+msgid "Started"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Stop"
+msgstr ""
+
+msgid "Stop failed"
+msgstr ""
+
+msgid "Stopped"
+msgstr ""
+
+msgid "Strategy"
+msgstr ""
+
+msgid "Subscription"
 msgstr ""
 
 msgid "Subscription URL"
 msgstr ""
 
-msgid "Format"
+msgid "Subscriptions"
+msgstr ""
+
+msgid "System /usr/bin/sing-box (>= 1.14.4)"
+msgstr ""
+
+msgid "System DNS only"
+msgstr ""
+
+msgid "Test interval"
+msgstr ""
+
+msgid "Tolerance (ms)"
+msgstr ""
+
+msgid "Traffic"
+msgstr ""
+
+msgid "Type"
+msgstr ""
+
+msgid "URI list / base64"
+msgstr ""
+
+msgid "URLTest (auto)"
+msgstr ""
+
+msgid "US"
+msgstr ""
+
+msgid "US default node"
+msgstr ""
+
+msgid "US group"
+msgstr ""
+
+msgid "US name keywords"
 msgstr ""
 
 msgid "Update"
@@ -90,3 +458,52 @@ msgstr ""
 
 msgid "Update All"
 msgstr ""
+
+msgid "Update Built-in Rule Sets"
+msgstr ""
+
+msgid "Update Core"
+msgstr ""
+
+msgid "Update failed"
+msgstr ""
+
+msgid "Update started. Check status later."
+msgstr ""
+
+msgid "Update started; refresh later for status"
+msgstr ""
+
+msgid "Updated"
+msgstr ""
+
+msgid "User-Agent"
+msgstr ""
+
+msgid "Username"
+msgstr ""
+
+msgid "Version"
+msgstr ""
+
+msgid "Warnings"
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "below 1.14.4"
+msgstr ""
+
+msgid "not installed"
+msgstr ""
+
+msgid "sing-box JSON"
+msgstr ""
+
+msgid "sing-box Lite"
+msgstr ""
+
+msgid "yq"
+msgstr ""
+

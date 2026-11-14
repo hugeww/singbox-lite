@@ -4,90 +4,507 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Project-Id-Version: luci-app-singbox-lite\n"
 "Language: zh_Hans\n"
+"Last-Translator: singbox-lite contributors\n"
+"MIME-Version: 1.0\n"
 
-msgid "sing-box Lite"
-msgstr "sing-box Lite"
+msgid "Actions"
+msgstr "操作"
 
-msgid "Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates."
-msgstr "sing-box 裸核管理器：订阅、规则集、出口组与核心更新"
+msgid "Add airport or self-hosted subscriptions. Base64/URI lists, sing-box JSON and Clash YAML (with yq) are supported."
+msgstr "添加机场或自建订阅。支持 base64/URI 列表、sing-box JSON 和 Clash YAML（需要 yq）。"
 
-msgid "Status"
-msgstr "状态"
+msgid "All DNS through proxy"
+msgstr "全部 DNS 走代理"
 
-msgid "Running"
-msgstr "运行中"
+msgid "Auto"
+msgstr "自动"
 
-msgid "Stopped"
-msgstr "已停止"
+msgid "Auto / first member"
+msgstr "自动 / 首个成员"
 
-msgid "Start"
-msgstr "启动"
-
-msgid "Stop"
-msgstr "停止"
-
-msgid "Restart"
-msgstr "重启"
-
-msgid "Core"
-msgstr "核心"
-
-msgid "Nodes"
-msgstr "节点"
-
-msgid "Subscriptions"
-msgstr "订阅"
-
-msgid "Rule Sets & Routing"
-msgstr "规则集与分流"
-
-msgid "Egress Groups"
-msgstr "出口组"
-
-msgid "Settings"
-msgstr "设置"
-
-msgid "Logs"
-msgstr "日志"
-
-msgid "Direct"
-msgstr "直连"
-
-msgid "Default group"
-msgstr "默认组"
+msgid "Auto detect"
+msgstr "自动检测"
 
 msgid "Auto group"
 msgstr "自动组"
 
-msgid "US group"
-msgstr "美国组"
+msgid "Auto test URL"
+msgstr "自动测速地址"
 
-msgid "Japan group"
-msgstr "日本组"
+msgid "Auto test interval"
+msgstr "自动测速间隔"
+
+msgid "Auto test tolerance (ms)"
+msgstr "自动测速容差（毫秒）"
+
+msgid "Autostart on boot"
+msgstr "开机自启"
+
+msgid "Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates."
+msgstr "sing-box 裸核管理器：订阅、规则集、出口组与核心更新"
+
+msgid "Built-in (read-only content)"
+msgstr "内置（内容只读）"
+
+msgid "Built-in Egress Groups"
+msgstr "内置出口组"
+
+msgid "Built-in groups are based on node country; the native group is manual and never auto-selected. Custom groups select nodes explicitly."
+msgstr "内置组按节点国家划分；原生组为手动选择，不参与自动测速。自定义组需显式选择节点。"
+
+msgid "Built-in rule sets are read-only; custom rule sets are evaluated before built-in ones. Select the egress group each rule set should use."
+msgstr "内置规则集内容只读；自定义规则集先于内置规则求值。请为每个规则集选择出口组。"
+
+msgid "Check Latest"
+msgstr "检查最新版本"
+
+msgid "Check failed"
+msgstr "检查失败"
+
+msgid "Check yq"
+msgstr "检查 yq"
+
+msgid "Clash YAML (yq)"
+msgstr "Clash YAML（yq）"
+
+msgid "Clear"
+msgstr "清除"
+
+msgid "Cleared"
+msgstr "已清除"
+
+msgid "Close"
+msgstr "关闭"
+
+msgid "Config"
+msgstr "配置"
+
+msgid "Config Preview"
+msgstr "配置预览"
+
+msgid "Config check failed"
+msgstr "配置校验失败"
+
+msgid "Config state"
+msgstr "配置状态"
+
+msgid "Configuration saved. Restart the service to apply it."
+msgstr "配置已保存，重启服务后生效。"
+
+msgid "Core"
+msgstr "核心"
+
+msgid "Core download mirror"
+msgstr "核心下载镜像"
+
+msgid "Core rollback"
+msgstr "核心回滚"
+
+msgid "Core source"
+msgstr "核心来源"
+
+msgid "Core update"
+msgstr "核心更新"
+
+msgid "Core version pin"
+msgstr "核心版本锁定"
+
+msgid "Country"
+msgstr "国家"
+
+msgid "Country and native-IP overrides are saved by node ID and survive subscription refresh."
+msgstr "国家与原生 IP 覆盖按节点 ID 保存，订阅刷新后仍然有效。"
+
+msgid "Custom Egress Groups"
+msgstr "自定义出口组"
+
+msgid "Custom Rule Sets"
+msgstr "自定义规则集"
+
+msgid "DNS"
+msgstr "DNS"
+
+msgid "DNS mode"
+msgstr "DNS 模式"
+
+msgid "Default group"
+msgstr "默认组"
+
+msgid "Default group target"
+msgstr "默认组目标"
+
+msgid "Default node"
+msgstr "默认节点"
+
+msgid "Detected Nodes"
+msgstr "已识别节点"
+
+msgid "Direct"
+msgstr "直连"
+
+msgid "Egress Groups"
+msgstr "出口组"
+
+msgid "Egress group"
+msgstr "出口组"
+
+msgid "Enable username/password"
+msgstr "启用用户名/密码"
+
+msgid "Enabled"
+msgstr "已启用"
+
+msgid "Format"
+msgstr "格式"
+
+msgid "Hong Kong"
+msgstr "香港"
+
+msgid "Hong Kong default node"
+msgstr "香港组默认节点"
 
 msgid "Hong Kong group"
 msgstr "香港组"
 
-msgid "Other countries"
-msgstr "其他国"
+msgid "Hong Kong name keywords"
+msgstr "香港名称关键词"
 
-msgid "Native group"
-msgstr "原生组"
+msgid "ID"
+msgstr "ID"
 
-msgid "Enabled"
-msgstr "启用"
+msgid "In sync"
+msgstr "已同步"
+
+msgid "Inbound"
+msgstr "入站"
+
+msgid "Inline domain/IP list"
+msgstr "内联域名/IP 列表"
+
+msgid "Inline domains/IPs"
+msgstr "内联域名/IP"
+
+msgid "Install failed"
+msgstr "安装失败"
+
+msgid "Install yq"
+msgstr "安装 yq"
+
+msgid "Installed"
+msgstr "已安装"
+
+msgid "Japan"
+msgstr "日本"
+
+msgid "Japan default node"
+msgstr "日本组默认节点"
+
+msgid "Japan group"
+msgstr "日本组"
+
+msgid "Japan name keywords"
+msgstr "日本名称关键词"
+
+msgid "Last update"
+msgstr "上次更新"
+
+msgid "Listen address"
+msgstr "监听地址"
+
+msgid "Listen port"
+msgstr "监听端口"
+
+msgid "Local .srs path"
+msgstr "本地 .srs 路径"
+
+msgid "Local path"
+msgstr "本地路径"
+
+msgid "Log level"
+msgstr "日志级别"
+
+msgid "Log max size (KB)"
+msgstr "日志最大体积（KB）"
+
+msgid "Logs"
+msgstr "日志"
+
+msgid "Main"
+msgstr "主要"
+
+msgid "Managed download"
+msgstr "托管下载"
+
+msgid "Manual Nodes"
+msgstr "手动节点"
+
+msgid "Member nodes"
+msgstr "成员节点"
 
 msgid "Name"
 msgstr "名称"
 
+msgid "Native IP"
+msgstr "原生 IP"
+
+msgid "Native IP name keywords"
+msgstr "原生 IP 名称关键词"
+
+msgid "Native default node"
+msgstr "原生组默认节点"
+
+msgid "Native group"
+msgstr "原生组"
+
+msgid "Native nodes are excluded from URLTest groups."
+msgstr "原生节点不会加入 URLTest 组。"
+
+msgid "No"
+msgstr "否"
+
+msgid "No log output."
+msgstr "暂无日志输出。"
+
+msgid "No nodes yet. Update a subscription or add a manual node."
+msgstr "暂无节点。请更新订阅或手动添加节点。"
+
+msgid "Nodes"
+msgstr "节点"
+
+msgid "Not installed; Clash YAML subscriptions need yq"
+msgstr "未安装；Clash YAML 订阅需要 yq"
+
+msgid "Order"
+msgstr "顺序"
+
+msgid "Other"
+msgstr "其他"
+
+msgid "Other countries"
+msgstr "其他国"
+
+msgid "Other countries default node"
+msgstr "其他国默认节点"
+
+msgid "Overview"
+msgstr "概况"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Paste share links or complete sing-box outbound JSON."
+msgstr "粘贴分享链接或完整的 sing-box 出口 JSON。"
+
+msgid "Path"
+msgstr "路径"
+
+msgid "Preview Config"
+msgstr "预览配置"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Refresh interval (hours)"
+msgstr "刷新间隔（小时）"
+
+msgid "Remote .srs URL"
+msgstr "远程 .srs 地址"
+
+msgid "Remote URL"
+msgstr "远程地址"
+
+msgid "Restart"
+msgstr "重启"
+
+msgid "Restart after scheduled refresh"
+msgstr "定时刷新后重启服务"
+
+msgid "Restart failed"
+msgstr "重启失败"
+
+msgid "Restarted"
+msgstr "已重启"
+
+msgid "Rollback Core"
+msgstr "回滚核心"
+
+msgid "Rollback failed"
+msgstr "回滚失败"
+
+msgid "Rolled back to "
+msgstr "已回滚到 "
+
+msgid "Rule Sets & Routing"
+msgstr "规则集与分流"
+
+msgid "Rule set"
+msgstr "规则集"
+
+msgid "Rule sets"
+msgstr "规则集"
+
+msgid "Rule-set data"
+msgstr "规则集数据"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "Save & Check Config"
+msgstr "保存并检查配置"
+
+msgid "Saved. Restart the service to apply."
+msgstr "已保存，重启服务后生效。"
+
+msgid "Saved; restart required"
+msgstr "已保存，需重启生效"
+
+msgid "Scheduled subscription refresh"
+msgstr "定时刷新订阅"
+
+msgid "Selector (manual)"
+msgstr "Selector（手动）"
+
+msgid "Server"
+msgstr "服务器"
+
+msgid "Service"
+msgstr "服务"
+
+msgid "Service, inbound, DNS, automatic refresh and core settings."
+msgstr "服务、入站、DNS、自动刷新与核心设置。"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Share Link / JSON"
+msgstr "分享链接 / JSON"
+
+msgid "Source"
+msgstr "来源"
+
+msgid "Split: CN direct, rest proxy"
+msgstr "分流：国内直连，其余走代理"
+
+msgid "Start"
+msgstr "启动"
+
+msgid "Start failed"
+msgstr "启动失败"
+
+msgid "Started"
+msgstr "已启动"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "Stop failed"
+msgstr "停止失败"
+
+msgid "Stopped"
+msgstr "已停止"
+
+msgid "Strategy"
+msgstr "解析策略"
+
+msgid "Subscription"
+msgstr "订阅"
+
 msgid "Subscription URL"
 msgstr "订阅地址"
 
-msgid "Format"
-msgstr "格式"
+msgid "Subscriptions"
+msgstr "订阅"
+
+msgid "System /usr/bin/sing-box (>= 1.14.4)"
+msgstr "系统 /usr/bin/sing-box（≥ 1.14.4）"
+
+msgid "System DNS only"
+msgstr "仅使用系统 DNS"
+
+msgid "Test interval"
+msgstr "测速间隔"
+
+msgid "Tolerance (ms)"
+msgstr "容差（毫秒）"
+
+msgid "Traffic"
+msgstr "流量"
+
+msgid "Type"
+msgstr "类型"
+
+msgid "URI list / base64"
+msgstr "URI 列表 / base64"
+
+msgid "URLTest (auto)"
+msgstr "URLTest（自动）"
+
+msgid "US"
+msgstr "美国"
+
+msgid "US default node"
+msgstr "美国组默认节点"
+
+msgid "US group"
+msgstr "美国组"
+
+msgid "US name keywords"
+msgstr "美国名称关键词"
 
 msgid "Update"
 msgstr "更新"
 
 msgid "Update All"
 msgstr "全部更新"
+
+msgid "Update Built-in Rule Sets"
+msgstr "更新内置规则集"
+
+msgid "Update Core"
+msgstr "更新核心"
+
+msgid "Update failed"
+msgstr "更新失败"
+
+msgid "Update started. Check status later."
+msgstr "更新已开始，稍后查看状态。"
+
+msgid "Update started; refresh later for status"
+msgstr "更新已开始，稍后刷新查看状态"
+
+msgid "Updated"
+msgstr "已更新"
+
+msgid "User-Agent"
+msgstr "User-Agent"
+
+msgid "Username"
+msgstr "用户名"
+
+msgid "Version"
+msgstr "版本"
+
+msgid "Warnings"
+msgstr "警告"
+
+msgid "Yes"
+msgstr "是"
+
+msgid "below 1.14.4"
+msgstr "低于 1.14.4"
+
+msgid "not installed"
+msgstr "未安装"
+
+msgid "sing-box JSON"
+msgstr "sing-box JSON"
+
+msgid "sing-box Lite"
+msgstr "sing-box Lite"
+
+msgid "yq"
+msgstr "yq"
+
