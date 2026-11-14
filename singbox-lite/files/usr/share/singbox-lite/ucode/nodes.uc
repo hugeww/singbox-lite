@@ -73,6 +73,18 @@ function override_map(cfg) {
 	return map;
 }
 
+/*
+ * 节点对外显示名（sing-box tag / Clash API 里的 proxy name）。
+ * 保留订阅里的可读名称，后缀 [id] 保证唯一：不同节点同名时不会撞 tag，
+ * 也不会因为订阅刷新顺序变化而让引用失效（引用一律通过 n.tag / n.id 获取）。
+ */
+function node_tag(name, id) {
+	let label = trim(name || '');
+	if (length(label) > 48)
+		label = substr(label, 0, 48);
+	return (length(label) ? label : 'node') + ' [' + id + ']';
+}
+
 function collect_nodes(cfg) {
 	let nodes = [];
 	let warnings = [];
@@ -96,7 +108,7 @@ function collect_nodes(cfg) {
 		seen[id] = true;
 		push(nodes, {
 			id: id,
-			tag: 'node_' + id,
+			tag: node_tag(name, id),
 			name: name,
 			type: raw.type || outbound.type,
 			server: raw.server || outbound.server,
@@ -158,4 +170,4 @@ function find_node(nodes, id) {
 	return null;
 }
 
-export { classify_country, is_native, node_fingerprint, collect_nodes, group_nodes, find_node };
+export { classify_country, is_native, node_fingerprint, node_tag, collect_nodes, group_nodes, find_node };
