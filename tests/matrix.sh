@@ -11,7 +11,7 @@ MODDIR="$TMP/modules"
 mkdir -p "$TMP" "$MODDIR"
 trap 'rm -rf "$TMP"' EXIT
 
-for m in common config links nodes rulesets subs generator core; do
+for m in common config links nodes rulesets subs generator core releases plugin panel; do
 	ln -s "$ROOT/singbox-lite/files/usr/share/singbox-lite/ucode/$m.uc" "$MODDIR/sbx_$m.uc"
 done
 

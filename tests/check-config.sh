@@ -18,7 +18,7 @@ export SINGBOX_LITE_ARCH="x86_64"
 
 MODDIR="$TMP/modules"
 mkdir -p "$MODDIR"
-for m in common config links nodes rulesets subs generator core; do
+for m in common config links nodes rulesets subs generator core releases plugin panel; do
   ln -s "$SINGBOX_LITE_LIB/ucode/$m.uc" "$MODDIR/sbx_$m.uc"
 done
 "$UCODE_BIN" -L "$MODDIR" "$ROOT/singbox-lite/files/usr/share/singbox-lite/cli.uc" build >"$TMP/build.json"
