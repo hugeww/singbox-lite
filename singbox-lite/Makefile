@@ -14,7 +14,7 @@ define Package/singbox-lite
   SECTION:=net
   CATEGORY:=Network
   TITLE:=sing-box bare-core manager (backend)
-  URL:=https://github.com/singbox-lite/singbox-lite
+  URL:=https://github.com/hugeww/singbox-lite
   DEPENDS:=+curl +ca-bundle +ucode +ucode-mod-fs +ucode-mod-uci +ucode-mod-ubus +ucode-mod-digest
   PKGARCH:=all
 endef
