@@ -9,7 +9,7 @@ import { update_ruleset, update_builtin_rulesets } from 'sbx_rulesets';
 import { core_path, core_status, update_core, rollback_core, MIN_VERSION, version_ge, latest_tag, arch_asset, download_url } from 'sbx_core';
 import { plugin_status, plugin_check, update_plugin, PLUGIN_REPO } from 'sbx_plugin';
 import { list_tags, cache_read, cache_write } from 'sbx_releases';
-import { panel_status, panel_proxies, panel_select, panel_delay, panel_connections, panel_close, random_secret } from 'sbx_panel';
+import { panel_status, panel_proxies, panel_select, panel_delay, panel_connections, panel_close, random_secret, dashboard_status, update_dashboard } from 'sbx_panel';
 import { unlink, rename, dirname } from 'fs';
 import { parse_link } from 'sbx_links';
 
@@ -288,7 +288,7 @@ function main() {
 	let cfg = null;
 	try {
 		if (cmd == 'version') return output({ ok: true, version: VERSION });
-		if (cmd == 'help') return output({ ok: true, commands: [ 'preview', 'check', 'build', 'refresh', 'status', 'update-rulesets', 'update-core', 'update-plugin', 'core-check', 'core-rollback', 'plugin-status', 'plugin-check', 'release-scan', 'panel-status', 'panel-proxies', 'panel-connections', 'panel-select', 'panel-delay', 'panel-close', 'panel-secret', 'parse-link', 'log' ] });
+		if (cmd == 'help') return output({ ok: true, commands: [ 'preview', 'check', 'build', 'refresh', 'status', 'update-rulesets', 'update-core', 'update-plugin', 'core-check', 'core-rollback', 'plugin-status', 'plugin-check', 'release-scan', 'panel-status', 'panel-proxies', 'panel-connections', 'panel-select', 'panel-delay', 'panel-close', 'panel-secret', 'dashboard-status', 'update-dashboard', 'parse-link', 'log' ] });
 		if (cmd == 'parse-link') {
 			let p = parse_link(opts._[0] || '');
 			return output(p);
@@ -309,6 +309,8 @@ function main() {
 		if (cmd == 'release-scan') return output(cmd_release_scan(cfg));
 		if (cmd == 'update-plugin') return output(update_plugin(cfg, opts));
 		if (cmd == 'panel-status') return output(panel_status(cfg));
+		if (cmd == 'dashboard-status') return output(dashboard_status(cfg));
+		if (cmd == 'update-dashboard') return output(update_dashboard(cfg, opts));
 		if (cmd == 'panel-proxies') return output(panel_proxies(cfg));
 		if (cmd == 'panel-connections') return output(panel_connections(cfg, int(opts.limit || 30)));
 		if (cmd == 'panel-select') return output(panel_select(cfg, opts.group || '', opts.node || ''));

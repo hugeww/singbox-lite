@@ -25,6 +25,7 @@ PATH.core_bak = PATH.core + '.bak';
 PATH.core_meta = PATH.etc + '/core.json';
 PATH.core_update_status = PATH.run_dir + '/core-update.json';
 PATH.plugin_update_status = PATH.run_dir + '/plugin-update.json';
+PATH.dashboard_update_status = PATH.run_dir + '/dashboard-update.json';
 PATH.releases_cache = PATH.run_dir + '/releases.json';
 PATH.refresh_status = PATH.run_dir + '/refresh.json';
 PATH.cron_file = getenv('SINGBOX_LITE_CRON_FILE') || '/etc/crontabs/root';

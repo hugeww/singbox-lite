@@ -7,6 +7,7 @@ import { popen, readfile, writefile } from 'fs';
 const CLI = '/usr/bin/singbox-lite';
 const CORE_STATUS_FILE = '/tmp/singbox-lite/core-update.json';
 const PLUGIN_STATUS_FILE = '/tmp/singbox-lite/plugin-update.json';
+const DASHBOARD_STATUS_FILE = '/tmp/singbox-lite/dashboard-update.json';
 const RELEASES_FILE = '/tmp/singbox-lite/releases.json';
 const REFRESH_STATUS_FILE = '/tmp/singbox-lite/refresh.json';
 
@@ -195,6 +196,18 @@ const methods = {
 	},
 	panel_secret: {
 		call: function() { return run_cli([ 'panel-secret', '--json' ]); }
+	},
+	dashboard_status: {
+		call: function() { return run_cli([ 'dashboard-status', '--json' ]); }
+	},
+	dashboard_update: {
+		call: function() {
+			let ok = run_cli_bg([ 'update-dashboard', '--json' ], '/tmp/singbox-lite-dashboard-update.log');
+			return { ok: ok, started: true };
+		}
+	},
+	dashboard_update_status: {
+		call: function() { return read_json_file(DASHBOARD_STATUS_FILE, { state: 'idle' }); }
 	},
 	ruleset_update: {
 		args: { id: 'id' },

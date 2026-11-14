@@ -9,7 +9,7 @@ import { resolve_rulesets } from 'sbx_rulesets';
 import { arch_asset, version_ge } from 'sbx_core';
 import { parse_tags, parse_release_page, mirror_url } from 'sbx_releases';
 import { asset_name, download_url, base_version, parse_apk_list, parse_apk_db } from 'sbx_plugin';
-import { pct, proxy_groups, connection_list, panel_config, last_delay } from 'sbx_panel';
+import { pct, proxy_groups, connection_list, panel_config, last_delay, dashboard_archive_url, dashboard_selected } from 'sbx_panel';
 import { PATH } from 'sbx_common';
 
 let failures = 0;
@@ -135,6 +135,22 @@ let cl = connection_list({ downloadTotal: 1024, uploadTotal: 512, connections: [
 ] }, 10);
 check(cl.download == 1024 && cl.upload == 512 && length(cl.connections) == 1, 'panel connection summary');
 check(cl.connections[0].chains[1] == 'a' && cl.connections[0].upload == 10, 'panel connection fields');
+
+/* official dashboard + clash_api generation */
+check(dashboard_archive_url('') == 'https://github.com/SagerNet/sing-box-dashboard/archive/refs/heads/gh-pages.zip', 'dashboard archive URL');
+check(dashboard_archive_url('https://ghfast.top/') == 'https://ghfast.top/https://github.com/SagerNet/sing-box-dashboard/archive/refs/heads/gh-pages.zip', 'dashboard archive URL honours mirror');
+check(dashboard_selected({ panel: { dashboard: 'official' } }) == 'official' && dashboard_selected({}) == 'native', 'dashboard selection');
+let panelCfg = {
+	main: { log_level: 'info' }, inbound: { listen: '127.0.0.1', port: '7890', auth: '0' },
+	dns: { mode: 'split', strategy: 'prefer_ipv4' },
+	egress: { default_group: 'auto' },
+	panel: { enabled: '1', listen: '0.0.0.0', port: '9090', secret: 'sekret', dashboard: 'native' },
+	rulesets: [], egress_groups: [], subscriptions: [], nodes: [], node_overrides: []
+};
+let pgen = build_config(panelCfg, { nodes: nodes, warnings: [] });
+check(pgen.ok && pgen.config.experimental.clash_api.external_controller == '0.0.0.0:9090' && pgen.config.experimental.clash_api.secret == 'sekret', 'generator emits clash_api');
+let pgenOff = build_config({ main: {}, inbound: {}, dns: { mode: 'split' }, egress: {}, panel: { enabled: '0' }, rulesets: [], egress_groups: [], subscriptions: [], nodes: [], node_overrides: [] }, { nodes: nodes, warnings: [] });
+check(pgenOff.ok && pgenOff.config.experimental.clash_api == null, 'clash_api omitted when panel disabled');
 
 if (failures) {
 	printf('FAILED: %d\n', failures);

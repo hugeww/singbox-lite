@@ -87,6 +87,15 @@ const callPanelClose = rpc.declare({
 const callPanelSecret = rpc.declare({
 	object: 'luci.singbox_lite', method: 'panel_secret', expect: { '': {} }
 });
+const callDashboardStatus = rpc.declare({
+	object: 'luci.singbox_lite', method: 'dashboard_status', expect: { '': {} }
+});
+const callDashboardUpdate = rpc.declare({
+	object: 'luci.singbox_lite', method: 'dashboard_update', expect: { '': {} }
+});
+const callDashboardUpdateStatus = rpc.declare({
+	object: 'luci.singbox_lite', method: 'dashboard_update_status', expect: { '': {} }
+});
 const callRulesetUpdate = rpc.declare({
 	object: 'luci.singbox_lite', method: 'ruleset_update', params: [ 'id' ], expect: { '': {} }
 });
@@ -132,6 +141,9 @@ return baseclass.extend({
 	panelDelay: (group) => callPanelDelay(group),
 	panelClose: (id) => callPanelClose(id),
 	panelSecret: () => callPanelSecret(),
+	dashboardStatus: () => callDashboardStatus(),
+	dashboardUpdate: () => callDashboardUpdate(),
+	dashboardUpdateStatus: () => callDashboardUpdateStatus(),
 	rulesetUpdate: (id) => callRulesetUpdate(id || null),
 	logTail: (lines) => callLogTail(lines || 100),
 	logClear: () => callLogClear(),

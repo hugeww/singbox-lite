@@ -60,6 +60,9 @@ msgstr ""
 msgid "Built-in Egress Groups"
 msgstr ""
 
+msgid "Built-in LuCI panel"
+msgstr ""
+
 msgid "Built-in groups are based on node country; the native group is manual and never auto-selected. Custom groups select nodes explicitly."
 msgstr ""
 
@@ -126,6 +129,12 @@ msgstr ""
 msgid "Continue"
 msgstr ""
 
+msgid "Copied"
+msgstr ""
+
+msgid "Copy"
+msgstr ""
+
 msgid "Core"
 msgstr ""
 
@@ -162,6 +171,12 @@ msgstr ""
 msgid "DNS mode"
 msgstr ""
 
+msgid "Dashboard files are not installed yet. Download them, then save the configuration and restart the service."
+msgstr ""
+
+msgid "Dashboard files updated. Save and restart the service to apply."
+msgstr ""
+
 msgid "Default group"
 msgstr ""
 
@@ -178,6 +193,12 @@ msgid "Direct"
 msgstr ""
 
 msgid "Download"
+msgstr ""
+
+msgid "Download dashboard files"
+msgstr ""
+
+msgid "Downloading dashboard files..."
 msgstr ""
 
 msgid "Egress Groups"
@@ -351,6 +372,12 @@ msgstr ""
 msgid "Not installed; Clash YAML subscriptions need yq"
 msgstr ""
 
+msgid "Official sing-box dashboard"
+msgstr ""
+
+msgid "Open the panel once, enter this secret in its settings, and the browser will remember it."
+msgstr ""
+
 msgid "Order"
 msgstr ""
 
@@ -369,7 +396,13 @@ msgstr ""
 msgid "Panel"
 msgstr ""
 
+msgid "Panel address"
+msgstr ""
+
 msgid "Panel is disabled. Enable it in Settings and restart the service."
+msgstr ""
+
+msgid "Panel type"
 msgstr ""
 
 msgid "Password"
@@ -550,6 +583,9 @@ msgid "Test interval"
 msgstr ""
 
 msgid "Test latency"
+msgstr ""
+
+msgid "The official dashboard is only reachable from other devices when the Clash API listens on 0.0.0.0 or a LAN address."
 msgstr ""
 
 msgid "The selected release will be downloaded and installed with apk, replacing singbox-lite and luci-app-singbox-lite."

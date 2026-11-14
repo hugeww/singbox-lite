@@ -30,9 +30,10 @@ config version_core 'version_core'
 
 config panel 'panel'
 	option enabled '1'
-	option listen '127.0.0.1'
+	option listen '0.0.0.0'
 	option port '9090'
 	option secret ''
+	option dashboard 'official'
 
 config egress 'egress'
 	option auto_url 'https://www.gstatic.com/generate_204'

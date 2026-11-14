@@ -13,7 +13,7 @@
 - **定时刷新**：cron 拉取订阅 → 重建 → `sing-box check` → 可选自动重启；失败保留旧配置。
 - **核心管理**：最低 sing-box 1.14.4；GitHub 最新稳定版下载、校验、原子替换、失败回滚。
 - **版本管理**：设置页可查看核心与插件当前版本，从 GitHub Release 列表选择版本，一键更新核心或插件（插件走 apk 覆盖安装）。
-- **实时面板**：通过 sing-box 的 Clash API 展示实时上下行、连接数、代理组切换与延迟测速、连接列表；API 默认只监听 `127.0.0.1:9090` 并带随机密钥，由 LuCI 后端代理访问。
+- **实时面板**：默认托管官方 [sing-box dashboard](https://github.com/SagerNet/sing-box-dashboard)（`clash_api.external_ui`，随包内嵌入口），也可切换为内置 LuCI 面板（流量、连接、代理组切换与测速）；Clash API 默认监听 `0.0.0.0:9090` 并带随机密钥。
 - **LuCI 页面**：概览、订阅、节点、规则集/分流、出口组、设置、日志。
 
 ## 环境要求
@@ -50,6 +50,7 @@ apk add --allow-untrusted ./singbox-lite-*.apk ./luci-app-singbox-lite-*.apk
 | `/etc/singbox-lite/subs/` | 订阅原始内容 |
 | `/etc/singbox-lite/meta/` | 订阅解析结果、流量/到期 |
 | `/etc/singbox-lite/rulesets/` | 用户更新/自定义规则集 |
+| `/etc/singbox-lite/ui/` | 官方 dashboard 静态文件（`external_ui`） |
 | `/usr/share/singbox-lite/rulesets/` | 内置规则集 |
 | `/usr/libexec/singbox-lite/sing-box` | 托管核心 |
 
@@ -63,15 +64,31 @@ apk add --allow-untrusted ./singbox-lite-*.apk ./luci-app-singbox-lite-*.apk
 
 ## 面板
 
-「面板」页通过 sing-box 的 Clash API 读取实时状态：
+面板有两种形态，在「设置 → 面板 → 面板类型」切换：
+
+### 官方 sing-box dashboard（默认）
+
+[SagerNet/sing-box-dashboard](https://github.com/SagerNet/sing-box-dashboard) 的构建产物，由 sing-box 通过 `clash_api.external_ui` 在 `http://<路由器>:9090/ui/` 直接托管（同源，无 CORS 问题）。
+
+1. 设置页点「下载面板文件」，从 GitHub（可用镜像）拉取 `gh-pages` 归档并解包到 `/etc/singbox-lite/ui`；
+2. 保存配置并重启服务，生成器会写入 `experimental.clash_api.external_ui`；
+3. 打开「面板」页即可内嵌使用；首次进入时在面板里填一次 API 地址与密钥（密钥在面板页显示，可一键复制），浏览器会记住。
+
+注意：官方面板需要 Clash API 监听 `0.0.0.0`（默认）或局域网地址，仅监听 `127.0.0.1` 时只能从路由器本机访问，生成配置会给出警告。
+
+### 内置 LuCI 面板
+
+不依赖外部资源，由插件后端代理 Clash API：
 
 - 状态：核心版本、运行模式、累计上传/下载、活动连接数；
 - 代理组：`selector`/`fallback` 组可直接切换节点，所有组都能对成员做延迟测速；
 - 连接列表：最近 30 条连接的主机、命中规则、链路、网络与流量，可单独关闭。
 
-Clash API 由 `config panel 'panel'` 控制，默认 `listen=127.0.0.1`、`port=9090`，并带随机 `secret`；LuCI 页面通过后端代理访问，不向浏览器暴露密钥，也不额外对局域网开端口。
+### 通用说明
 
-如需用 metacubexd / yacd 等第三方面板直连，把 `listen` 改成 `0.0.0.0`（或路由器 LAN 地址）、在「设置 → 面板」保存后重启服务，并自行在防火墙放行该端口——这属于本插件「不改防火墙」之外的操作用户自理。
+Clash API 由 `config panel 'panel'` 控制：`enabled`、`listen`、`port`、`secret`、`dashboard`。密钥由 uci-defaults 首次安装时随机生成，也可在设置页重新生成。
+
+连 metacubexd / yacd 等其他面板时，把 `listen` 设为 `0.0.0.0`、在「设置 → 面板」保存后重启服务，并自行在防火墙放行该端口——这属于本插件「不改防火墙」之外的操作用户自理。
 
 ## 构建
 

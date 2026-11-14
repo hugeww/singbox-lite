@@ -13,7 +13,7 @@ A lightweight, bare-core sing-box manager for LuCI. It converts airport subscrip
 - Scheduled subscription refresh with `sing-box check`, optional automatic restart and rollback safety.
 - Core manager: requires sing-box >= 1.14.4, downloads GitHub releases, verifies, atomically installs and rolls back on failure.
 - Version manager: shows the installed core and plugin versions, lists GitHub release tags, and updates either of them from the Settings page (the plugin is reinstalled with apk).
-- Live panel: real-time traffic, connection count, proxy-group switching and latency tests, and a connection list, powered by the sing-box Clash API (bound to `127.0.0.1` with a random secret and proxied through LuCI).
+- Live panel: serves the official [sing-box dashboard](https://github.com/SagerNet/sing-box-dashboard) through `clash_api.external_ui` (default), with a built-in LuCI panel (traffic, connections, proxy-group switching, latency tests) as the alternative; the Clash API listens on `0.0.0.0:9090` with a random secret.
 - LuCI pages: Overview, Panel, Subscriptions, Nodes, Rule Sets & Routing, Egress Groups, Settings, Logs.
 
 ## Requirements

@@ -1,11 +1,15 @@
 'use strict';
 
-import { trim, run_capture, sh_quote } from 'sbx_common';
+import { trim, run_capture, sh_quote, write_json, mkdir_p, file_exists, PATH, now_string } from 'sbx_common';
+import { unlink, rename, stat } from 'fs';
+import { mirror_url } from 'sbx_releases';
 
 const DEFAULT_PORT = 9090;
 const DEFAULT_LISTEN = '127.0.0.1';
 const DEFAULT_DELAY_URL = 'https://www.gstatic.com/generate_204';
 const MAX_DELAY_MEMBERS = 12;
+const DASHBOARD_REPO = 'SagerNet/sing-box-dashboard';
+const DASHBOARD_ARCHIVE = 'https://github.com/' + DASHBOARD_REPO + '/archive/refs/heads/gh-pages.zip';
 
 function panel_config(cfg) {
 	let p = (cfg && cfg.panel) || {};
@@ -24,6 +28,102 @@ function panel_config(cfg) {
 function delay_url(cfg, p) {
 	let url = (cfg && cfg.egress && cfg.egress.auto_url) || '';
 	return length(trim(url)) ? trim(url) : ((p && p.url) || DEFAULT_DELAY_URL);
+}
+
+/* Official sing-box dashboard (SagerNet/sing-box-dashboard), served by sing-box via external_ui. */
+function dashboard_dir() {
+	return PATH.etc + '/ui';
+}
+
+function dashboard_installed() {
+	return file_exists(dashboard_dir() + '/index.html');
+}
+
+function dashboard_archive_url(mirror) {
+	return mirror_url(DASHBOARD_ARCHIVE, mirror);
+}
+
+function dashboard_selected(cfg) {
+	return ((cfg && cfg.panel && cfg.panel.dashboard) || 'native');
+}
+
+function dashboard_status(cfg) {
+	let p = panel_config(cfg);
+	return {
+		ok: true,
+		repo: DASHBOARD_REPO,
+		selected: dashboard_selected(cfg),
+		installed: dashboard_installed(),
+		path: dashboard_dir(),
+		port: p.port,
+		url_path: '/ui/'
+	};
+}
+
+function write_dashboard_status(state, data) {
+	let obj = { state: state, updated: now_string() };
+	for (let k in keys(data || {})) obj[k] = data[k];
+	mkdir_p(PATH.run_dir);
+	write_json(PATH.dashboard_update_status, obj, 384);
+}
+
+function first_dir(path) {
+	let r = run_capture('find ' + sh_quote(path) + ' -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n 1');
+	return trim(split(r.out || '', '\n')[0] || '');
+}
+
+function update_dashboard(cfg, opts) {
+	opts = opts || {};
+	let mirror = opts.mirror != null ? opts.mirror : ((cfg && cfg.main && cfg.main.core_mirror) || '');
+	if (system([ 'sh', '-c', 'command -v unzip >/dev/null 2>&1' ]) != 0) {
+		let err = '缺少 unzip 命令，请先安装 unzip（busybox 通常自带）';
+		write_dashboard_status('error', { error: err });
+		return { ok: false, error: err };
+	}
+	let url = dashboard_archive_url(mirror);
+	write_dashboard_status('downloading', { message: '下载 ' + url, url: url });
+	mkdir_p(PATH.run_dir);
+	let zip = PATH.run_dir + '/dashboard.zip';
+	let dir = PATH.run_dir + '/dashboard-extract';
+	system([ 'rm', '-rf', dir ]);
+	mkdir_p(dir);
+	let r = run_capture('curl -fsSL --connect-timeout 15 --max-time 300 -o ' + sh_quote(zip) + ' ' + sh_quote(url));
+	if (!r.ok) {
+		write_dashboard_status('error', { error: '下载失败' });
+		return { ok: false, error: '下载失败，请检查网络或镜像' };
+	}
+	let st = stat(zip);
+	if (!st || !st.size) {
+		write_dashboard_status('error', { error: '下载文件为空' });
+		return { ok: false, error: '下载文件为空' };
+	}
+	if (system([ 'unzip', '-q', '-o', zip, '-d', dir ]) != 0) {
+		write_dashboard_status('error', { error: '解包失败' });
+		return { ok: false, error: '解包失败' };
+	}
+	let top = first_dir(dir);
+	if (!length(top) || !file_exists(top + '/index.html')) {
+		write_dashboard_status('error', { error: '面板包结构异常' });
+		return { ok: false, error: '面板包结构异常（未找到 index.html）' };
+	}
+	write_dashboard_status('installing', { message: '安装面板文件' });
+	let target = dashboard_dir();
+	let stage = PATH.etc + '/ui.new';
+	system([ 'rm', '-rf', stage ]);
+	mkdir_p(stage);
+	if (system([ 'cp', '-a', top + '/.', stage ]) != 0 && system([ 'sh', '-c', 'cp -r ' + sh_quote(top) + '/. ' + sh_quote(stage) ]) != 0) {
+		write_dashboard_status('error', { error: '复制面板文件失败' });
+		return { ok: false, error: '复制面板文件失败' };
+	}
+	system([ 'rm', '-rf', target ]);
+	if (rename(stage, target) !== true) {
+		write_dashboard_status('error', { error: '替换面板目录失败' });
+		return { ok: false, error: '替换面板目录失败' };
+	}
+	system([ 'rm', '-rf', dir ]);
+	try { unlink(zip); } catch (e) {}
+	write_dashboard_status('done', { size: st.size });
+	return { ok: true, path: target, size: st.size };
 }
 
 /* Percent-encode everything outside the unreserved set (names contain spaces, CJK, emoji). */
@@ -118,10 +218,12 @@ function connection_list(data, limit) {
 
 function panel_status(cfg) {
 	let p = panel_config(cfg);
-	if (!p.enabled) return { ok: false, enabled: false, error: '面板未启用' };
-	if (!length(p.secret)) return { ok: false, enabled: true, error: '未设置 API 密钥', port: p.port, listen: p.listen };
+	let dash = dashboard_selected(cfg);
+	let dash_ready = dashboard_installed();
+	if (!p.enabled) return { ok: false, enabled: false, error: '面板未启用', dashboard: dash, dashboard_installed: dash_ready };
+	if (!length(p.secret)) return { ok: false, enabled: true, error: '未设置 API 密钥', port: p.port, listen: p.listen, dashboard: dash, dashboard_installed: dash_ready };
 	let v = api(cfg, 'GET', '/version');
-	if (!v.ok) return { ok: false, enabled: true, error: v.error || 'Clash API 不可达', port: p.port, listen: p.listen };
+	if (!v.ok) return { ok: false, enabled: true, error: v.error || 'Clash API 不可达', port: p.port, listen: p.listen, dashboard: dash, dashboard_installed: dash_ready };
 	let conns = api(cfg, 'GET', '/connections');
 	let conf = api(cfg, 'GET', '/configs');
 	return {
@@ -133,7 +235,10 @@ function panel_status(cfg) {
 		upload: conns.ok ? int(((conns.data || {}).uploadTotal) || 0) : 0,
 		count: conns.ok ? length(((conns.data || {}).connections) || []) : 0,
 		port: p.port,
-		listen: p.listen
+		listen: p.listen,
+		secret: p.secret,
+		dashboard: dash,
+		dashboard_installed: dash_ready
 	};
 }
 
@@ -194,8 +299,9 @@ function random_secret() {
 }
 
 export {
-	DEFAULT_PORT, DEFAULT_LISTEN, DEFAULT_DELAY_URL,
+	DEFAULT_PORT, DEFAULT_LISTEN, DEFAULT_DELAY_URL, DASHBOARD_REPO, DASHBOARD_ARCHIVE,
 	panel_config, delay_url, pct, last_delay, api, proxy_groups, connection_list,
 	panel_status, panel_proxies, panel_select, panel_delay, panel_connections, panel_close,
-	random_secret
+	dashboard_dir, dashboard_installed, dashboard_archive_url, dashboard_selected,
+	dashboard_status, update_dashboard, random_secret
 };

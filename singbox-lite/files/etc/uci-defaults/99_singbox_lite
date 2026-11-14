@@ -39,7 +39,7 @@ fi
 if ! uci -q get singbox-lite.panel >/dev/null 2>&1; then
 	uci set singbox-lite.panel=panel
 	uci set singbox-lite.panel.enabled=1
-	uci set singbox-lite.panel.listen=127.0.0.1
+	uci set singbox-lite.panel.listen=0.0.0.0
 	uci set singbox-lite.panel.port=9090
 fi
 if [ -z "$(uci -q get singbox-lite.panel.secret)" ]; then
@@ -47,6 +47,9 @@ if [ -z "$(uci -q get singbox-lite.panel.secret)" ]; then
 	if [ -z "$(uci -q get singbox-lite.panel.secret)" ]; then
 		uci set singbox-lite.panel.secret="$(date +%s 2>/dev/null | md5sum 2>/dev/null | cut -c1-24)"
 	fi
+fi
+if [ -z "$(uci -q get singbox-lite.panel.dashboard)" ]; then
+	uci set singbox-lite.panel.dashboard=official
 fi
 
 uci -q commit singbox-lite

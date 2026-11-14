@@ -61,6 +61,9 @@ msgstr "内置（内容只读）"
 msgid "Built-in Egress Groups"
 msgstr "内置出口组"
 
+msgid "Built-in LuCI panel"
+msgstr "内置 LuCI 面板"
+
 msgid "Built-in groups are based on node country; the native group is manual and never auto-selected. Custom groups select nodes explicitly."
 msgstr "内置组按节点国家划分；原生组为手动选择，不参与自动测速。自定义组需显式选择节点。"
 
@@ -127,6 +130,12 @@ msgstr "连接"
 msgid "Continue"
 msgstr "继续"
 
+msgid "Copied"
+msgstr "已复制"
+
+msgid "Copy"
+msgstr "复制"
+
 msgid "Core"
 msgstr "核心"
 
@@ -163,6 +172,12 @@ msgstr "DNS"
 msgid "DNS mode"
 msgstr "DNS 模式"
 
+msgid "Dashboard files are not installed yet. Download them, then save the configuration and restart the service."
+msgstr "面板文件尚未安装，请先下载，然后保存配置并重启服务。"
+
+msgid "Dashboard files updated. Save and restart the service to apply."
+msgstr "面板文件已更新，保存并重启服务后生效。"
+
 msgid "Default group"
 msgstr "默认组"
 
@@ -180,6 +195,12 @@ msgstr "直连"
 
 msgid "Download"
 msgstr "下载"
+
+msgid "Download dashboard files"
+msgstr "下载面板文件"
+
+msgid "Downloading dashboard files..."
+msgstr "正在下载面板文件……"
 
 msgid "Egress Groups"
 msgstr "出口组"
@@ -352,6 +373,12 @@ msgstr "节点"
 msgid "Not installed; Clash YAML subscriptions need yq"
 msgstr "未安装；Clash YAML 订阅需要 yq"
 
+msgid "Official sing-box dashboard"
+msgstr "官方 sing-box 面板"
+
+msgid "Open the panel once, enter this secret in its settings, and the browser will remember it."
+msgstr "首次打开面板时输入该密钥，浏览器会记住。"
+
 msgid "Order"
 msgstr "顺序"
 
@@ -370,8 +397,14 @@ msgstr "概况"
 msgid "Panel"
 msgstr "面板"
 
+msgid "Panel address"
+msgstr "面板地址"
+
 msgid "Panel is disabled. Enable it in Settings and restart the service."
 msgstr "面板已禁用，请在设置中启用并重启服务。"
+
+msgid "Panel type"
+msgstr "面板类型"
 
 msgid "Password"
 msgstr "密码"
@@ -552,6 +585,9 @@ msgstr "测速间隔"
 
 msgid "Test latency"
 msgstr "测速"
+
+msgid "The official dashboard is only reachable from other devices when the Clash API listens on 0.0.0.0 or a LAN address."
+msgstr "官方面板只有在 Clash API 监听 0.0.0.0 或局域网地址时才能被其他设备访问。"
 
 msgid "The selected release will be downloaded and installed with apk, replacing singbox-lite and luci-app-singbox-lite."
 msgstr "将通过 apk 下载并安装所选版本，覆盖 singbox-lite 与 luci-app-singbox-lite。"

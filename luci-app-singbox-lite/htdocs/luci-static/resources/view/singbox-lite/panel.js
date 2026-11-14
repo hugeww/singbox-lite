@@ -17,6 +17,110 @@ function notify(title, msg, type) {
 	ui.addNotification(title, msg, type || 'info');
 }
 
+function dashboardUrl(port) {
+	let host = window.location.hostname || '';
+	return 'http://' + host + ':' + (port || 9090) + '/ui/';
+}
+
+function renderOfficial(status, title, descr) {
+	let url = dashboardUrl(status.port);
+
+	if (!status.dashboard_installed) {
+		let btn = E('button', { class: 'btn cbi-button cbi-button-positive' }, _('Download dashboard files'));
+		btn.addEventListener('click', function() {
+			btn.disabled = true;
+			api.dashboardUpdate().then(function(r) {
+				if (!r || !r.ok) {
+					btn.disabled = false;
+					notify(_('Panel'), (r && r.error) || _('Action failed'), 'danger');
+					return;
+				}
+				notify(_('Panel'), _('Downloading dashboard files...'), 'info');
+				let tries = 0;
+				let timer = setInterval(function() {
+					api.dashboardUpdateStatus().then(function(st) {
+						let state = st && st.state;
+						if (state == 'done') {
+							clearInterval(timer);
+							window.location.reload();
+						} else if (state == 'error') {
+							clearInterval(timer);
+							btn.disabled = false;
+							notify(_('Panel'), (st && st.error) || _('Action failed'), 'danger');
+						} else if (++tries > 150) {
+							clearInterval(timer);
+							btn.disabled = false;
+						}
+					}).catch(function() {
+						clearInterval(timer);
+						btn.disabled = false;
+					});
+				}, 2000);
+			});
+		});
+		return E('div', { class: 'cbi-map' }, [
+			title,
+			descr,
+			E('fieldset', { class: 'cbi-section' }, [
+				E('p', {}, _('Dashboard files are not installed yet. Download them, then save the configuration and restart the service.')),
+				E('p', {}, btn)
+			])
+		]);
+	}
+
+	if (!status.ok) {
+		return E('div', { class: 'cbi-map' }, [
+			title,
+			descr,
+			E('fieldset', { class: 'cbi-section' }, [
+				E('p', {}, status.enabled === true
+					? _('Clash API is not reachable. Save the configuration and restart the service.')
+					: _('Panel is disabled. Enable it in Settings and restart the service.')),
+				E('p', {}, (status.port ? _('Port') + ': ' + status.port + '  ' : '') +
+					(status.error ? _('Error') + ': ' + status.error : '')),
+				E('a', {
+					class: 'btn cbi-button cbi-button-action',
+					href: L.url('admin/services/singbox-lite/settings')
+				}, _('Go to Settings'))
+			])
+		]);
+	}
+
+	let secret = status.secret || '';
+	let listen = status.listen || '';
+	let loopback = (listen == '127.0.0.1' || listen == '::1' || listen == '[::1]');
+	let copyBtn = E('button', { class: 'btn cbi-button' }, _('Copy'));
+	copyBtn.addEventListener('click', function() {
+		if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+		navigator.clipboard.writeText(secret).then(function() {
+			notify(_('Panel'), _('Copied'), 'info');
+		});
+	});
+
+	let info = E('fieldset', { class: 'cbi-section' }, [
+		E('div', { class: 'cbi-value' }, [
+			E('label', { class: 'cbi-value-title' }, _('Panel address')),
+			E('div', { class: 'cbi-value-field' }, E('a', { href: url, target: '_blank', rel: 'noopener' }, url))
+		]),
+		E('div', { class: 'cbi-value' }, [
+			E('label', { class: 'cbi-value-title' }, _('API secret')),
+			E('div', { class: 'cbi-value-field' }, [ E('code', {}, secret || '-'), ' ', copyBtn ])
+		]),
+		E('p', {}, _('Open the panel once, enter this secret in its settings, and the browser will remember it.')),
+		loopback ? E('p', {}, E('strong', {}, _('The official dashboard is only reachable from other devices when the Clash API listens on 0.0.0.0 or a LAN address.'))) : ''
+	]);
+
+	return E('div', { class: 'cbi-map' }, [
+		title,
+		descr,
+		info,
+		E('fieldset', { class: 'cbi-section' }, E('iframe', {
+			src: url,
+			style: 'width:100%;height:78vh;border:0;background:#fff;'
+		}))
+	]);
+}
+
 return view.extend({
 	load: function() {
 		return Promise.all([
@@ -33,6 +137,9 @@ return view.extend({
 		let title = E('h2', { name: 'content' }, _('Panel'));
 		let descr = E('div', { class: 'cbi-map-descr' },
 			_('Live status, proxy groups and connections from the sing-box Clash API.'));
+
+		if (status.dashboard === 'official')
+			return renderOfficial(status, title, descr);
 
 		if (!status.ok) {
 			let enabled = status.enabled === true;

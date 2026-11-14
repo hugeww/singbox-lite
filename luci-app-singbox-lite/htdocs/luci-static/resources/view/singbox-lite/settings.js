@@ -243,6 +243,11 @@ return view.extend({
 		o.rmempty = false;
 		o.default = '1';
 
+		o = s.option(form.ListValue, 'dashboard', _('Panel type'));
+		o.value('official', _('Official sing-box dashboard'));
+		o.value('native', _('Built-in LuCI panel'));
+		o.default = 'official';
+
 		o = s.option(form.Value, 'listen', _('Listen address'));
 		o.placeholder = '127.0.0.1';
 
@@ -261,6 +266,33 @@ return view.extend({
 				} else {
 					notify(_('Panel'), (r && r.error) || _('Action failed'), 'danger');
 				}
+			});
+		};
+
+		o = s.option(form.Button, '_dashboard_update', _('Download dashboard files'));
+		o.inputstyle = 'action';
+		o.onclick = function() {
+			return api.dashboardUpdate().then(function(r) {
+				if (!r || !r.ok) {
+					notify(_('Panel'), (r && r.error) || _('Action failed'), 'danger');
+					return;
+				}
+				notify(_('Panel'), _('Downloading dashboard files...'), 'info');
+				let tries = 0;
+				let timer = setInterval(function() {
+					api.dashboardUpdateStatus().then(function(st) {
+						let state = st && st.state;
+						if (state == 'done') {
+							clearInterval(timer);
+							notify(_('Panel'), _('Dashboard files updated. Save and restart the service to apply.'), 'info');
+						} else if (state == 'error') {
+							clearInterval(timer);
+							notify(_('Panel'), (st.error || _('Action failed')), 'danger');
+						} else if (++tries > 150) {
+							clearInterval(timer);
+						}
+					}).catch(function() { clearInterval(timer); });
+				}, 2000);
 			});
 		};
 

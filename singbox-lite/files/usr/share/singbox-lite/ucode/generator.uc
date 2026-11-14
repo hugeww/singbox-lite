@@ -1,6 +1,6 @@
 'use strict';
 
-import { trim, split_csv, PATH } from 'sbx_common';
+import { trim, split_csv, file_exists, PATH } from 'sbx_common';
 import { group_nodes, find_node } from 'sbx_nodes';
 import { resolve_rulesets, rule_set_tag } from 'sbx_rulesets';
 
@@ -237,6 +237,15 @@ function build_config(cfg, collected) {
 			external_controller: listen + ':' + port,
 			secret: secret
 		};
+		if ((panel.dashboard || 'native') == 'official') {
+			let ui = PATH.etc + '/ui';
+			if (file_exists(ui + '/index.html'))
+				experimental.clash_api.external_ui = ui;
+			else
+				push(warnings, '已选择官方面板，但面板文件尚未下载（设置 → 面板 → 下载面板文件）');
+			if (listen == '127.0.0.1' || listen == '::1' || listen == '[::1]')
+				push(warnings, '官方面板需要 Clash API 监听 0.0.0.0 或局域网地址，当前仅监听本机');
+		}
 	}
 
 	let config = {
