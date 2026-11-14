@@ -39,7 +39,7 @@ CORE_BIN=/tmp/sing-box-1.14.4/sing-box \
 tests/check-config.sh
 ```
 
-The script builds `tests/cli-config.json`, runs `sing-box check`, and fails on any error.
+The script builds `tests/cli-config.json` (a TUN + auto_redirect config), runs `sing-box check`, and fails on any error.
 
 ## Config matrix
 
@@ -49,4 +49,4 @@ CORE_BIN=/tmp/sing-box-1.14.4/sing-box \
 tests/matrix.sh
 ```
 
-It checks generated configs for DNS modes `split`, `system` and `proxy`.
+It checks generated configs for DNS modes `split`, `system` and `proxy`; the inbound is always `tun` with `auto_route`/`auto_redirect`.

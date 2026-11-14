@@ -13,15 +13,16 @@ include $(INCLUDE_DIR)/package.mk
 define Package/singbox-lite
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=sing-box bare-core manager (backend)
+  TITLE:=sing-box TUN/auto_redirect manager (backend)
   URL:=https://github.com/hugeww/singbox-lite
-  DEPENDS:=+curl +ca-bundle +ucode +ucode-mod-fs +ucode-mod-uci +ucode-mod-ubus +ucode-mod-digest
+  DEPENDS:=+curl +ca-bundle +ucode +ucode-mod-fs +ucode-mod-uci +ucode-mod-ubus +ucode-mod-digest \
+	+kmod-tun +kmod-nft-core +kmod-nft-nat +kmod-nft-queue +kmod-nfnetlink-queue
   PKGARCH:=all
 endef
 
 define Package/singbox-lite/description
-  Backend for the sing-box bare-core LuCI manager: subscription conversion,
-  rule-set and egress-group configuration, config generation, scheduled
+  Backend for the sing-box TUN manager: subscription conversion, rule-set and
+  egress-group configuration, TUN + auto_redirect config generation, scheduled
   refresh and core updates.
 endef
 

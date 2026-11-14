@@ -1,6 +1,6 @@
 {
   "main": { "log_level": "info", "core_source": "managed", "auto_apply": "1" },
-  "inbound": { "listen": "127.0.0.1", "port": "7890", "auth": "0" },
+  "inbound": { "address": "172.19.0.1/30,fdfe:dcba:9876::1/126", "mtu": "9000", "strict_route": "0", "exclude_cn": "1" },
   "dns": { "mode": "split", "strategy": "prefer_ipv4" },
   "egress": {
     "auto_url": "https://www.gstatic.com/generate_204",

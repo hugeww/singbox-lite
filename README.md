@@ -1,6 +1,6 @@
 # sing-box Lite (OpenWrt 25.12+)
 
-轻量、裸核的 sing-box LuCI 管理面板：把机场订阅和自建 VPS 节点转换成 sing-box 配置，支持可配置规则集、国家/自定义出口组、定时刷新和核心更新。不接管防火墙，不生成 TUN/TPROXY。
+基于 TUN + auto_redirect 的 sing-box LuCI 管理面板：把机场订阅和自建 VPS 节点转换成 sing-box 配置，支持可配置规则集、国家/自定义出口组、定时刷新和核心更新。透明代理由 sing-box 自己接管（`tun` + `auto_route` + `auto_redirect`），插件不写 fw4 规则；`auto_redirect` 会向 `/etc/nftables.d` 注入放行规则并 reload fw4。
 
 ## 功能
 
@@ -9,7 +9,9 @@
 - **可配置规则集**：内置国内/AI/流媒体/社交/开发规则集；支持内联域名/IP、远程 `.srs` URL、本地 `.srs` 路径。
 - **可配置出口组**：内置直连/自动/默认/美国/日本/香港/其他国/原生组；支持自定义 `selector`/`urltest` 组。
 - **分流规则**：规则集 → 出口组的可排序列表；自定义规则优先于内置规则。
-- **裸核运行**：`mixed` 入站，只运行 sing-box 核心；不修改 `firewall`/`network`/`dhcp`。
+- **TUN 透明代理**：`tun` 入站 + `auto_route` + `auto_redirect`；本机与 LAN 转发流量由内核 redirect 接管，不再提供 `mixed` 代理端口。
+- **内核层国内直连**：`geoip-cn` 通过 `route_exclude_address_set` 预匹配排除，国内 IP 不进入 sing-box 连接路径；可在设置页关闭。
+- **DNS 劫持与分流**：`dns_mode: hijack`；`split` 下国内 DNS 走 `223.5.5.5` 直连，其余走代理 DoH。
 - **定时刷新**：cron 拉取订阅 → 重建 → `sing-box check` → 可选自动重启；失败保留旧配置。
 - **核心管理**：最低 sing-box 1.14.4；GitHub 最新稳定版下载、校验、原子替换、失败回滚。
 - **版本管理**：设置页可查看核心与插件当前版本，从 GitHub Release 列表选择版本，一键更新核心或插件（插件走 apk 覆盖安装）。
@@ -21,6 +23,11 @@
 - OpenWrt 25.12+（apk 包管理；24.10 仅为 best-effort）。
 - 架构：x86_64、aarch64、armv7/armv6/armv5、mips/mipsel、mips64/mips64el、riscv64、loongarch64（取决于 sing-box 官方资产）。
 - 至少约 120MB 可用空间（完整 sing-box 1.14.4 二进制约 88MB，压缩包约 32MB）。
+- 内核模块：`kmod-tun`、`kmod-nft-core`（含 `nft_redir`）、`kmod-nft-nat`、`kmod-nft-queue`、`kmod-nfnetlink-queue`；apk 会自动拉取，自编译固件需内置。缺 `kmod-nft-queue`/`kmod-nfnetlink-queue` 时 auto_redirect 仍可 redirect，但预匹配关闭，`route_exclude_address_set` 不生效。
+- 防火墙：OpenWrt 25.12 默认的 `firewall4`/nftables；旧的 fw3/iptables 栈不支持。
+- 不要与 mwan3、passwall 等基于 fwmark 的策略路由/透明代理同时启用；`auto_redirect` 与 `route.default_mark`、`dialOptions.routing_mark` 冲突。
+- 启动/停止 sing-box 会触发一次 `fw4 reload`（写入 `/etc/nftables.d/0-sing-box-auto-redirect.nft` 后重载），属于正常行为。
+- fw4 的 software/hardware flow offloading 与 auto_redirect 的兼容性取决于内核与驱动；建议先关闭 offload 验证，确认无问题再开。
 - 大陆网络建议准备 GitHub 镜像（设置页可填 `https://ghfast.top/` 等）。
 
 ## 安装
@@ -49,6 +56,8 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 3. “概览 → 保存并检查配置”，再点“启动”。
 4. 在“规则集/分流”“出口组”按自己的使用习惯调整目标。
 
+启动后 `auto_redirect` 会自动接管本机与 LAN 转发流量，LAN 客户端无需再手动填写代理端口；如需旁路由，把客户端网关指向本机即可。
+
 > 本插件不依赖 OpenWrt 软件源里的 `sing-box` 包（25.12 源为 1.13.21，低于 1.14.4 最低要求）。核心默认下载到 `/usr/libexec/singbox-lite/sing-box`。
 
 ## 配置与数据
@@ -64,12 +73,19 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 | `/etc/singbox-lite/ui/` | 官方 dashboard 静态文件（`external_ui`） |
 | `/usr/share/singbox-lite/rulesets/` | 内置规则集 |
 | `/usr/libexec/singbox-lite/sing-box` | 托管核心 |
+| `/etc/singbox-lite/cache.db` | 核心缓存（含 DNS 缓存） |
+| `/etc/nftables.d/0-sing-box-auto-redirect.nft` | auto_redirect 写入 fw4 的兼容规则（由 sing-box 管理） |
 
 ## 分流与出口模型
 
+- **接管方式**：`tun` + `auto_route` + `auto_redirect`；TCP/UDP 由 nftables redirect 到核心，ICMP 只在预匹配里处理。
 - **分流**决定“这是什么流量”：自定义 > 国内 AI > 国内 > 国外 AI > 流媒体 > 社交 > 开发 > 默认。
 - **出口**决定“从哪出去”：直连、自动组、默认组、美国/日本/香港/其他国、原生组、自定义组。
 - 国内和国内 AI 固定直连；其他类别默认走默认组，可在“规则集/分流”改为国家组/自动组/原生组/自定义组。
+- **国内 IP 预匹配直连**：`geoip-cn` 同时作为 `route_exclude_address_set`，命中的目标 IP 在内核层绕开 TUN；域名层仍由 `geosite-cn` 规则兜底。
+- **DNS**：`dns_mode: hijack`；`split` 下国内域名/局域网后缀走直连 DNS，其余走代理 DoH，`system` 表示全部直连，`proxy` 表示全部走代理。
+- `strict_route` 默认关闭：路由器 DHCP/PPPoE 依赖 `SO_BINDTODEVICE`，开启后这类流量也会被接管；需要更严格的防泄漏时再在设置页打开。
+- TUN 模式没有域名，域名分流依赖 `sniff`（TLS SNI / HTTP Host / QUIC）；未识别的流量按 IP 规则与默认组处理。
 - 原生组按节点名关键词（原生/native/家宽…）自动收集，也可手动勾选；**不参与自动选择**，需要时手动把某类流量的出口切到原生组。
 - 国家组按节点名关键词自动归类（美国/US/洛杉矶…、日本/JP/东京…、香港/HK…），每个节点可在“节点”页覆盖。
 
@@ -157,7 +173,9 @@ ucode -L /tmp/sbxmods tests/run.uc
 ## 限制
 
 - 单份生成配置；不做 profile/多配置切换。
-- 不实现 TUN/TPROXY/Redirect、DNS 劫持、FakeIP、访问控制。
+- 不实现 FakeIP、访问控制；域名分流依赖 sniff，未识别流量按 IP/默认组处理。
+- 不实现 TPROXY/Redirect 入站；只支持 TUN + auto_redirect。
+- 不管理 fw4 的 zone/NAT；`inet sing-box` 表与 `/etc/nftables.d` 兼容规则由 sing-box 自己维护，插件只生成核心配置。
 - 插件自更新依赖 GitHub Release 中 `singbox-lite-<arch>-openwrt-25.12.tar.gz`，仅覆盖 x86_64 与 aarch64_cortex-a53 两种构建。
 - Clash YAML 转换依赖 `yq`，不是硬依赖。
 - 规则集随包提供，更新内置规则集需要访问 GitHub 或镜像。

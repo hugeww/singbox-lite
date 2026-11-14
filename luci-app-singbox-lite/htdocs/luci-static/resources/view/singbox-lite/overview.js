@@ -123,7 +123,7 @@ return view.extend({
 
 		let o;
 		let m = new form.Map('singbox-lite', _('sing-box Lite'),
-			_('Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates.'));
+			_('TUN sing-box manager: subscriptions, rule sets, egress groups and core updates.'));
 
 		let s = api.actionTable(m, _('Status'));
 

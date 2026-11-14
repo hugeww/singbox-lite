@@ -7,6 +7,9 @@ msgstr ""
 "Last-Translator: singbox-lite contributors\n"
 "MIME-Version: 1.0\n"
 
+msgid "All DNS direct"
+msgstr "全部 DNS 直连"
+
 msgid "API secret"
 msgstr "API 密钥"
 
@@ -52,8 +55,26 @@ msgstr "自动测速容差（毫秒）"
 msgid "Autostart on boot"
 msgstr "开机自启"
 
-msgid "Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates."
-msgstr "sing-box 裸核管理器：订阅、规则集、出口组与核心更新"
+msgid "Exclude CN IPs from TUN routes"
+msgstr "国内 IP 不进入 TUN 路由（预匹配直连）"
+
+msgid "Service, TUN, DNS, automatic refresh and core settings."
+msgstr "服务、TUN、DNS、自动刷新与核心设置。"
+
+msgid "Strict route"
+msgstr "严格路由"
+
+msgid "TUN address"
+msgstr "TUN 地址"
+
+msgid "TUN inbound"
+msgstr "TUN 入站"
+
+msgid "TUN MTU"
+msgstr "TUN MTU"
+
+msgid "TUN sing-box manager: subscriptions, rule sets, egress groups and core updates."
+msgstr "sing-box TUN 管理器：订阅、规则集、出口组与核心更新"
 
 msgid "Built-in (read-only content)"
 msgstr "内置（内容只读）"
@@ -220,9 +241,6 @@ msgstr "出口组"
 msgid "Enable panel"
 msgstr "启用面板"
 
-msgid "Enable username/password"
-msgstr "启用用户名/密码"
-
 msgid "Enabled"
 msgstr "已启用"
 
@@ -258,9 +276,6 @@ msgstr "ID"
 
 msgid "In sync"
 msgstr "已同步"
-
-msgid "Inbound"
-msgstr "入站"
 
 msgid "Inline domain/IP list"
 msgstr "内联域名/IP 列表"
@@ -421,9 +436,6 @@ msgstr "面板已禁用，请在设置中启用并重启服务。"
 msgid "Panel type"
 msgstr "面板类型"
 
-msgid "Password"
-msgstr "密码"
-
 msgid "Paste share links or complete sing-box outbound JSON."
 msgstr "粘贴分享链接或完整的 sing-box 出口 JSON。"
 
@@ -547,9 +559,6 @@ msgstr "服务器"
 msgid "Service"
 msgstr "服务"
 
-msgid "Service, inbound, DNS, automatic refresh and core settings."
-msgstr "服务、入站、DNS、自动刷新与核心设置。"
-
 msgid "Settings"
 msgstr "设置"
 
@@ -600,9 +609,6 @@ msgstr "订阅"
 
 msgid "System /usr/bin/sing-box (>= 1.14.4)"
 msgstr "系统 /usr/bin/sing-box（≥ 1.14.4）"
-
-msgid "System DNS only"
-msgstr "仅使用系统 DNS"
 
 msgid "Test failed"
 msgstr "测速失败"
@@ -696,9 +702,6 @@ msgstr "上传"
 
 msgid "User-Agent"
 msgstr "User-Agent"
-
-msgid "Username"
-msgstr "用户名"
 
 msgid "Version"
 msgstr "版本"

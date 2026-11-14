@@ -81,7 +81,7 @@ return view.extend({
 		let pluginTags = mergeTags(cached.plugin, uci.get('singbox-lite', 'version', 'plugin_tag'));
 
 		let m = new form.Map('singbox-lite', _('Settings'),
-			_('Service, inbound, DNS, automatic refresh and core settings.'));
+			_('Service, TUN, DNS, automatic refresh and core settings.'));
 
 		let top = api.actionTable(m, _('Actions'));
 		let saveBtn = top.option(form.Button, '_save_check', _('Save & Check Config'));
@@ -295,25 +295,24 @@ return view.extend({
 			});
 		};
 
-		s = m.section(form.NamedSection, 'inbound', 'inbound', _('Inbound'));
+		s = m.section(form.NamedSection, 'inbound', 'inbound', _('TUN inbound'));
 		s.anonymous = false;
-		o = s.option(form.Value, 'listen', _('Listen address'));
-		o.placeholder = '0.0.0.0';
-		o = s.option(form.Value, 'port', _('Listen port'));
-		o.datatype = 'port';
-		o.default = '7890';
-		o = s.option(form.Flag, 'auth', _('Enable username/password'));
-		o = s.option(form.Value, 'username', _('Username'));
-		o.optional = true;
-		o = s.option(form.Value, 'password', _('Password'));
-		o.password = true;
-		o.optional = true;
+		o = s.option(form.Value, 'address', _('TUN address'));
+		o.placeholder = '172.19.0.1/30,fdfe:dcba:9876::1/126';
+		o.rmempty = false;
+		o = s.option(form.Value, 'mtu', _('TUN MTU'));
+		o.datatype = 'uinteger';
+		o.default = '9000';
+		o = s.option(form.Flag, 'strict_route', _('Strict route'));
+		o.default = '0';
+		o = s.option(form.Flag, 'exclude_cn', _('Exclude CN IPs from TUN routes'));
+		o.default = '1';
 
 		s = m.section(form.NamedSection, 'dns', 'dns', _('DNS'));
 		s.anonymous = false;
 		o = s.option(form.ListValue, 'mode', _('DNS mode'));
 		o.value('split', _('Split: CN direct, rest proxy'));
-		o.value('system', _('System DNS only'));
+		o.value('system', _('All DNS direct'));
 		o.value('proxy', _('All DNS through proxy'));
 		o.default = 'split';
 		o = s.option(form.ListValue, 'strategy', _('Strategy'));

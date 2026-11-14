@@ -150,12 +150,18 @@ function build_config(cfg, collected) {
 	let resolved = resolve_rulesets(cfg);
 	for (let e in resolved.errors) push(errors, e);
 	let rule_set_defs = [];
+	let dns_mode = cfg.dns && cfg.dns.mode ? cfg.dns.mode : 'split';
 	let route_rules = [
 		{ action: 'sniff' },
+		{ protocol: 'dns', action: 'hijack-dns' },
 		{ ip_is_private: true, outbound: 'direct' }
 	];
 	let dns_rules = [];
+	if (dns_mode == 'split')
+		push(dns_rules, { domain_suffix: [ '.lan', '.local', '.home.arpa' ], server: 'dns-direct' });
 	let used_file_tags = {};
+	let route_exclude_tags = [];
+	let route_exclude_seen = {};
 
 	for (let rule in resolved.rules) {
 		let target = rule.target;
@@ -173,6 +179,12 @@ function build_config(cfg, collected) {
 				if (!match(f.path, /\/geoip-[^\/]*$/))
 					push(dns_tags, f.tag);
 				used_file_tags[f.tag] = true;
+				/* The built-in CN rule is a full geoip-cn match; exclude it from TUN routes at the nftables layer. */
+				if (rule.kind == 'builtin' && rule.source == 'builtin_cn' && rule.target == 'direct' &&
+				    match(f.path, /\/geoip-cn\.srs$/) && !route_exclude_seen[f.tag]) {
+					push(route_exclude_tags, f.tag);
+					route_exclude_seen[f.tag] = true;
+				}
 			}
 			push(route_rules, { rule_set: tags, outbound: target });
 			if (length(dns_tags))
@@ -194,8 +206,7 @@ function build_config(cfg, collected) {
 	if (!group_tags.default) push(errors, '默认出口组不存在：没有可用节点');
 	if (length(errors)) return { ok: false, errors: errors, warnings: warnings };
 
-	let dns_mode = cfg.dns && cfg.dns.mode ? cfg.dns.mode : 'split';
-	let dns_servers = [{ type: 'local', tag: 'dns-direct' }];
+	let dns_servers = [{ type: 'udp', tag: 'dns-direct', server: '223.5.5.5', detour: 'direct' }];
 	if (dns_mode != 'system')
 		push(dns_servers, { type: 'https', tag: 'dns-proxy', server: '1.1.1.1', detour: 'default' });
 	if (dns_mode == 'proxy')
@@ -204,26 +215,36 @@ function build_config(cfg, collected) {
 		servers: dns_servers,
 		rules: dns_mode == 'system' ? [] : dns_rules,
 		final: dns_mode == 'system' ? 'dns-direct' : 'dns-proxy',
-		strategy: (cfg.dns && cfg.dns.strategy) || 'prefer_ipv4'
+		strategy: (cfg.dns && cfg.dns.strategy) || 'prefer_ipv4',
+		cache_capacity: 8192
 	};
 
-	let inbound = {
-		type: 'mixed',
-		tag: 'mixed-in',
-		listen: (cfg.inbound && cfg.inbound.listen) || '0.0.0.0',
-		listen_port: int((cfg.inbound && cfg.inbound.port) || 7890)
-	};
-	if (cfg.inbound && cfg.inbound.auth == '1') {
-		if (!length(cfg.inbound.username || '') || !length(cfg.inbound.password || '')) {
-			push(warnings, '已启用入站认证但用户名/密码为空，使用默认 admin/admin');
-			inbound.users = [{ username: 'admin', password: 'admin' }];
-		} else {
-			inbound.users = [{ username: cfg.inbound.username, password: cfg.inbound.password }];
-		}
+	/* TUN is the only inbound: auto_redirect requires auto_route and Linux nftables. */
+	let tun_address = [];
+	for (let a in as_list((cfg.inbound && cfg.inbound.address) || '172.19.0.1/30,fdfe:dcba:9876::1/126'))
+		if (length(trim(a))) push(tun_address, trim(a));
+	if (!length(tun_address))
+		tun_address = [ '172.19.0.1/30', 'fdfe:dcba:9876::1/126' ];
+	let tun_mtu = int((cfg.inbound && cfg.inbound.mtu) || 9000);
+	if (tun_mtu < 1280 || tun_mtu > 65535) {
+		push(warnings, sprintf('TUN MTU %d 无效，已回退到 9000', tun_mtu));
+		tun_mtu = 9000;
 	}
+	let inbound = {
+		type: 'tun',
+		tag: 'tun-in',
+		address: tun_address,
+		mtu: tun_mtu,
+		auto_route: true,
+		auto_redirect: true,
+		strict_route: (cfg.inbound && cfg.inbound.strict_route == '1'),
+		dns_mode: 'hijack'
+	};
+	if (cfg.inbound && cfg.inbound.exclude_cn != '0' && length(route_exclude_tags))
+		inbound.route_exclude_address_set = route_exclude_tags;
 
 	let experimental = {
-		cache_file: { enabled: true, path: PATH.etc + '/cache.db' }
+		cache_file: { enabled: true, path: PATH.etc + '/cache.db', store_dns: true }
 	};
 	let panel = cfg.panel || {};
 	if (panel.enabled == '1') {

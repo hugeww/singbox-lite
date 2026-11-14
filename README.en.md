@@ -1,6 +1,6 @@
 # sing-box Lite (OpenWrt 25.12+)
 
-A lightweight, bare-core sing-box manager for LuCI. It converts airport subscriptions and self-hosted VPS nodes into a sing-box configuration, with configurable rule sets, country/custom egress groups, scheduled refresh and core updates. It does not manage firewall/NAT or generate TUN/TPROXY.
+A lightweight TUN + auto_redirect sing-box manager for LuCI. It converts airport subscriptions and self-hosted VPS nodes into a sing-box configuration, with configurable rule sets, country/custom egress groups, scheduled refresh and core updates. sing-box owns the transparent-proxy rules (`tun` + `auto_route` + `auto_redirect`); the plugin never writes fw4 rules. `auto_redirect` writes its compatibility file under `/etc/nftables.d` and reloads fw4 on start/stop.
 
 ## Features
 
@@ -9,7 +9,10 @@ A lightweight, bare-core sing-box manager for LuCI. It converts airport subscrip
 - Configurable rule sets: built-in CN/AI/streaming/social/dev sets, plus inline domain/IP lists, remote `.srs` URLs and local `.srs` paths.
 - Configurable egress groups: direct, auto, default, US/Japan/Hong Kong/Other, native and custom selector/urltest groups.
 - Routing = ordered "rule set → egress group" rules; custom rules run before built-in rules.
-- Bare-core runtime: a single `mixed` inbound; no firewall/network/dhcp changes.
+- TUN runtime: `tun` + `auto_route` + `auto_redirect`; no `mixed` proxy port is exposed and LAN clients need no manual proxy setting.
+- Kernel-level CN bypass: `geoip-cn` is added to `route_exclude_address_set`, so direct CN destinations never enter sing-box connection handling.
+- DNS hijack with split: domestic DNS goes to `223.5.5.5` directly, everything else goes through DoH over the proxy.
+- `strict_route` is off by default: router DHCP/PPPoE relies on `SO_BINDTODEVICE`; enabling it captures that traffic too. Turn it on only when stricter leak prevention is needed.
 - Scheduled subscription refresh with `sing-box check`, optional automatic restart and rollback safety.
 - Core manager: requires sing-box >= 1.14.4, downloads GitHub releases, verifies, atomically installs and rolls back on failure.
 - Version manager: shows the installed core and plugin versions, lists GitHub release tags, and updates either of them from the Settings page (the plugin is reinstalled with apk).
@@ -20,6 +23,11 @@ A lightweight, bare-core sing-box manager for LuCI. It converts airport subscrip
 
 - OpenWrt 25.12+ with apk; 24.10 is best-effort only.
 - ~100 MB free space for the full sing-box binary.
+- Kernel modules: `kmod-tun`, `kmod-nft-core` (includes `nft_redir`), `kmod-nft-nat`, `kmod-nft-queue`, `kmod-nfnetlink-queue`. The apk dependencies pull them in; custom images must build them in. Without `kmod-nft-queue`/`kmod-nfnetlink-queue`, redirect still works but pre-match (the CN bypass) is disabled.
+- firewall4/nftables (the OpenWrt 25.12 default); fw3/iptables is not supported.
+- Do not combine with mwan3, passwall or other fwmark-based policy routing/transparent proxies; auto_redirect conflicts with `route.default_mark` and `dialOptions.routing_mark`.
+- Starting/stopping sing-box triggers one `fw4 reload`, which is expected.
+- fw4 software/hardware flow offloading and auto_redirect may or may not coexist depending on kernel/driver; disable offload for the first validation run, then re-enable once confirmed.
 - A GitHub mirror is recommended in mainland China (configurable in Settings).
 
 ## Install
@@ -39,7 +47,7 @@ rm -f /tmp/luci-indexcache
 
 Then force-reload the browser (Ctrl+F5): page strings come from `/cgi-bin/luci/admin/translations/<lang>`, which carries no version parameter.
 
-Open **Services → sing-box Lite**, install/update the core, add subscriptions/nodes, save & check, then start.
+Open **Services → sing-box Lite**, install/update the core, add subscriptions/nodes, save & check, then start. On start, the router and LAN-forwarded traffic are captured automatically; clients need no manual proxy port. For a bypass-router setup, point client gateways at this router.
 
 ## Build and release
 

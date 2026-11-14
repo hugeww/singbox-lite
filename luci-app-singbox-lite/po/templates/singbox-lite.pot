@@ -6,6 +6,9 @@ msgstr ""
 "Last-Translator: singbox-lite contributors\n"
 "MIME-Version: 1.0\n"
 
+msgid "All DNS direct"
+msgstr ""
+
 msgid "API secret"
 msgstr ""
 
@@ -51,7 +54,25 @@ msgstr ""
 msgid "Autostart on boot"
 msgstr ""
 
-msgid "Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates."
+msgid "Exclude CN IPs from TUN routes"
+msgstr ""
+
+msgid "Service, TUN, DNS, automatic refresh and core settings."
+msgstr ""
+
+msgid "Strict route"
+msgstr ""
+
+msgid "TUN address"
+msgstr ""
+
+msgid "TUN inbound"
+msgstr ""
+
+msgid "TUN MTU"
+msgstr ""
+
+msgid "TUN sing-box manager: subscriptions, rule sets, egress groups and core updates."
 msgstr ""
 
 msgid "Built-in (read-only content)"
@@ -219,9 +240,6 @@ msgstr ""
 msgid "Enable panel"
 msgstr ""
 
-msgid "Enable username/password"
-msgstr ""
-
 msgid "Enabled"
 msgstr ""
 
@@ -256,9 +274,6 @@ msgid "ID"
 msgstr ""
 
 msgid "In sync"
-msgstr ""
-
-msgid "Inbound"
 msgstr ""
 
 msgid "Inline domain/IP list"
@@ -420,9 +435,6 @@ msgstr ""
 msgid "Panel type"
 msgstr ""
 
-msgid "Password"
-msgstr ""
-
 msgid "Paste share links or complete sing-box outbound JSON."
 msgstr ""
 
@@ -546,9 +558,6 @@ msgstr ""
 msgid "Service"
 msgstr ""
 
-msgid "Service, inbound, DNS, automatic refresh and core settings."
-msgstr ""
-
 msgid "Settings"
 msgstr ""
 
@@ -598,9 +607,6 @@ msgid "Subscriptions"
 msgstr ""
 
 msgid "System /usr/bin/sing-box (>= 1.14.4)"
-msgstr ""
-
-msgid "System DNS only"
 msgstr ""
 
 msgid "Test failed"
@@ -694,9 +700,6 @@ msgid "Upload"
 msgstr ""
 
 msgid "User-Agent"
-msgstr ""
-
-msgid "Username"
 msgstr ""
 
 msgid "Version"

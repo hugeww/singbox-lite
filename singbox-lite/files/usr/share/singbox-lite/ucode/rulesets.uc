@@ -138,6 +138,7 @@ function resolve_rulesets(cfg) {
 		let entry = {
 			id: sec ? sec['.name'] : 'rs_' + source,
 			kind: 'builtin',
+			source: source,
 			name: def.name,
 			target: (sec && sec.target) || def.default_target,
 			files: [],

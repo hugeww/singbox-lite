@@ -119,7 +119,7 @@ let nodes = [
 	mknode('vless://11111111-1111-1111-1111-111111111111@native.example.com:443?security=reality&sni=native.example.com&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=01#原生-01', 'us', true)
 ];
 let cfg = {
-	main: { log_level: 'info' }, inbound: { listen: '127.0.0.1', port: '7890', auth: '0' },
+	main: { log_level: 'info' }, inbound: { address: '172.19.0.1/30,fdfe:dcba:9876::1/126', mtu: '9000', strict_route: '0', exclude_cn: '1' },
 	dns: { mode: 'split', strategy: 'prefer_ipv4' },
 	egress: { auto_url: 'https://www.gstatic.com/generate_204', auto_interval: '10m', auto_tolerance: '50', default_group: 'auto', native_keywords: '原生,native' },
 	rulesets: [ { '.name': 'rs_custom_1', kind: 'custom', name: 'Custom', type: 'inline', domains: 'example.com\n1.2.3.0/24', target: 'us', enabled: '1', order: '10' } ],
@@ -136,9 +136,20 @@ if (gen.ok) {
 	let autoOut = null;
 	for (let o in gen.config.outbounds) if (o.tag == 'auto') autoOut = o;
 	check(autoOut != null && index(autoOut.outbounds, nodes[3].tag) < 0, 'native node excluded from auto');
+	let tun = gen.config.inbounds[0];
+	check(length(gen.config.inbounds) == 1 && tun.type == 'tun' && tun.tag == 'tun-in', 'generator emits a single tun inbound');
+	check(tun.auto_route == true && tun.auto_redirect == true, 'tun enables auto_route and auto_redirect');
+	check(tun.dns_mode == 'hijack', 'tun hijacks DNS');
+	check(tun.listen == null && tun.listen_port == null, 'mixed listen fields removed');
+	check(index(tun.route_exclude_address_set || [], 'rs_builtin_cn_1') >= 0, 'CN geoip rule set excluded from tun routes');
+	check(gen.config.dns.servers[0].type == 'udp' && gen.config.dns.servers[0].detour == 'direct', 'direct DNS bypasses the proxy detour');
 	let route = gen.config.route.rules;
-	check(route[2].domain_suffix && route[2].outbound == 'us', 'custom rule before built-ins');
+	check(route[3].domain_suffix && route[3].outbound == 'us', 'custom rule before built-ins');
 	check(route[length(route) - 1].rule_set && route[length(route) - 1].outbound == 'default', 'built-in fallback target');
+	cfg.inbound.exclude_cn = '0';
+	let genNoExclude = build_config(cfg, { nodes: nodes, warnings: [] });
+	check(genNoExclude.ok && !genNoExclude.config.inbounds[0].route_exclude_address_set, 'exclude_cn=0 disables the CN pre-match exclusion');
+	cfg.inbound.exclude_cn = '1';
 }
 
 /* rule set resolution */
