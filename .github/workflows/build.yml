@@ -78,6 +78,7 @@ jobs:
 
       - name: ucode compile checks
         run: |
+          export LD_LIBRARY_PATH="/tmp/ucode-install/lib:${LD_LIBRARY_PATH:-}"
           for f in singbox-lite/files/usr/share/singbox-lite/ucode/*.uc; do
             /tmp/ucode-install/bin/ucode -cmodule -L /tmp/sbxmods -o /tmp/out.uc "$f"
           done
