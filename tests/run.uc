@@ -3,7 +3,7 @@
 import { readfile } from 'fs';
 import { parse_link, parse_manual_input, clash_to_outbound } from 'sbx_links';
 import { parse_body } from 'sbx_subs';
-import { classify_country, is_native, node_fingerprint } from 'sbx_nodes';
+import { classify_country, is_native, node_fingerprint, node_tag, collect_nodes } from 'sbx_nodes';
 import { build_config } from 'sbx_generator';
 import { resolve_rulesets } from 'sbx_rulesets';
 import { arch_asset, version_ge } from 'sbx_core';
@@ -57,11 +57,31 @@ check(classify_country('Singapore', egress) == 'other', 'other country classific
 check(is_native('原生 IP 01', egress), 'native keyword');
 check(!is_native('normal 01', egress), 'non-native keyword');
 
+/* readable tags + info-node filtering */
+check(node_tag('香港 01', 'abc12345') == '香港 01 [abc12345]', 'node tag keeps readable name');
+check(node_tag('   ', 'abc12345') == 'node [abc12345]', 'node tag falls back to node');
+
+let infoCfg = {
+	main: { log_level: 'info', info_keywords: '' },
+	egress: egress,
+	subscriptions: [],
+	node_overrides: [],
+	nodes: [
+		{ '.name': 'info1', enabled: '1', link: 'vless://11111111-1111-1111-1111-111111111111@info.example.com:443?security=tls&sni=info.example.com#剩余流量：348.39 GB' },
+		{ '.name': 'info2', enabled: '1', link: 'vless://11111111-1111-1111-1111-111111111111@info2.example.com:443?security=tls&sni=info2.example.com#如果很少节点可用，去官网更新软件' },
+		{ '.name': 'real', enabled: '1', link: 'vless://11111111-1111-1111-1111-111111111111@real.example.com:443?security=tls&sni=real.example.com#美国 洛杉矶 01' }
+	]
+};
+let infoCollected = collect_nodes(infoCfg);
+check(length(infoCollected.nodes) == 1, 'info nodes skipped');
+check(infoCollected.nodes[0] && infoCollected.nodes[0].name == '美国 洛杉矶 01', 'real node kept');
+check(length(infoCollected.warnings) == 2, 'info nodes reported as warnings');
+
 /* generator */
 function mknode(link, country, native) {
 	let p = parse_link(link);
 	let id = node_fingerprint(p.outbound);
-	return { id: id, tag: 'node_' + id, name: p.name, type: p.type, server: p.server, server_port: p.server_port,
+	return { id: id, tag: node_tag(p.name, id), name: p.name, type: p.type, server: p.server, server_port: p.server_port,
 		outbound: p.outbound, source: 'test', source_name: 'test', country: country, country_mode: 'auto', native: native, native_mode: native ? '1' : 'auto' };
 }
 let nodes = [
@@ -87,7 +107,7 @@ if (gen.ok) {
 	check(tags['eg_test'], 'custom egress group generated');
 	let autoOut = null;
 	for (let o in gen.config.outbounds) if (o.tag == 'auto') autoOut = o;
-	check(autoOut != null && index(autoOut.outbounds, 'node_' + nodes[3].id) < 0, 'native node excluded from auto');
+	check(autoOut != null && index(autoOut.outbounds, nodes[3].tag) < 0, 'native node excluded from auto');
 	let route = gen.config.route.rules;
 	check(route[2].domain_suffix && route[2].outbound == 'us', 'custom rule before built-ins');
 	check(route[length(route) - 1].rule_set && route[length(route) - 1].outbound == 'default', 'built-in fallback target');
