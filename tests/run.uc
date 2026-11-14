@@ -3,14 +3,14 @@
 import { readfile } from 'fs';
 import { parse_link, parse_manual_input, clash_to_outbound } from 'sbx_links';
 import { parse_body } from 'sbx_subs';
-import { classify_country, is_native, node_fingerprint, node_tag, collect_nodes } from 'sbx_nodes';
+import { classify_country, is_native, node_fingerprint, node_tag, override_key, collect_nodes, group_nodes } from 'sbx_nodes';
 import { build_config } from 'sbx_generator';
 import { resolve_rulesets } from 'sbx_rulesets';
 import { arch_asset, version_ge } from 'sbx_core';
 import { parse_tags, parse_release_page, mirror_url } from 'sbx_releases';
 import { asset_name, download_url, base_version, parse_apk_list, parse_apk_db } from 'sbx_plugin';
 import { pct, proxy_groups, connection_list, panel_config, last_delay, dashboard_archive_url, dashboard_selected } from 'sbx_panel';
-import { PATH } from 'sbx_common';
+import { PATH, mkdir_p, write_json } from 'sbx_common';
 
 let failures = 0;
 function check(cond, msg) {
@@ -76,6 +76,34 @@ let infoCollected = collect_nodes(infoCfg);
 check(length(infoCollected.nodes) == 1, 'info nodes skipped');
 check(infoCollected.nodes[0] && infoCollected.nodes[0].name == '美国 洛杉矶 01', 'real node kept');
 check(length(infoCollected.warnings) == 2, 'info nodes reported as warnings');
+
+/* node overrides: sections written by the LuCI Nodes page */
+let olink = 'vless://11111111-1111-1111-1111-111111111111@us.example.com:443?security=tls&sni=us.example.com#US-LA-01';
+let oparse = parse_link(olink);
+let oid = node_fingerprint(oparse.outbound);
+check(oid == lc(oid), 'node ids are lowercase');
+check(override_key('ABCD12') == 'abcd12', 'override_key lowercases ids');
+
+mkdir_p(PATH.meta_dir);
+write_json(PATH.meta_dir + '/ovtest.json', { nodes: [ { name: 'US-LA-01', type: oparse.type, server: oparse.server, server_port: oparse.server_port, outbound: oparse.outbound } ] });
+
+function collect(ovs) {
+	let cfg = {
+		egress: { native_keywords: '原生,native' }, nodes: [], node_overrides: ovs || [],
+		subscriptions: [ { '.name': 'ovtest', name: 'S', enabled: '1' } ]
+	};
+	return collect_nodes(cfg);
+}
+function groups_of(col) {
+	let g = group_nodes(col.nodes);
+	return sprintf('auto=%d native=%d us=%d', length(g.auto), length(g.native), length(g.us));
+}
+check(groups_of(collect([])) == 'auto=1 native=0 us=1', 'override: no override keeps node in auto+us');
+check(groups_of(collect([ { '.name': 'ov_a', id: oid, native_mode: '1' } ])) == 'auto=0 native=1 us=0', 'override: native_mode=1 moves node to native group');
+check(groups_of(collect([ { '.name': 'ov_a', id: uc(oid), native_mode: '1' } ])) == 'auto=0 native=1 us=0', 'override: id matched case-insensitively');
+check(groups_of(collect([ { '.name': 'ov_a', id: oid, native_mode: '0' } ])) == 'auto=1 native=0 us=1', 'override: native_mode=0 stays non-native');
+check(groups_of(collect([ { '.name': 'ov_a', id: oid, native_mode: 'auto' } ])) == 'auto=1 native=0 us=1', 'override: native_mode=auto uses keywords');
+check(groups_of(collect([ { '.name': 'ov_a', id: oid, enabled: '0' } ])) == 'auto=0 native=0 us=0', 'override: enabled=0 drops node');
 
 /* generator */
 function mknode(link, country, native) {

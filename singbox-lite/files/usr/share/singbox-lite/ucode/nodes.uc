@@ -64,6 +64,15 @@ function node_fingerprint(outbound) {
 	]);
 }
 
+/*
+ * Node ids are always lowercase (stable_id hashes lowercase input), but UCI
+ * section names keep the case the user typed, so an override section written
+ * as "ov_AB12CD" would never match id "ab12cd".
+ */
+function override_key(id) {
+	return lc(trim(id == null ? '' : id));
+}
+
 function as_list(v) {
 	if (v == null) return [];
 	if (type(v) == 'array') return v;
@@ -74,7 +83,7 @@ function override_map(cfg) {
 	let map = {};
 	for (let ov in cfg.node_overrides || []) {
 		if (!ov.id) continue;
-		map[ov.id] = ov;
+		map[override_key(ov.id)] = ov;
 	}
 	return map;
 }
@@ -113,7 +122,7 @@ function collect_nodes(cfg) {
 			push(warnings, sprintf('重复节点已跳过：%s（来源 %s）', raw.name || outbound.server, source_name));
 			return;
 		}
-		let ov = overrides[id] || {};
+		let ov = overrides[override_key(id)] || {};
 		if (ov.enabled == '0') return;
 		let name = trim(raw.name || outbound.server || 'node');
 		if (is_info_node(name, cfg)) {
@@ -121,8 +130,8 @@ function collect_nodes(cfg) {
 			return;
 		}
 		let country = ov.country && ov.country != 'auto' ? ov.country : classify_country(name, cfg.egress);
-		let native = ov.native == '1' ? true : (ov.native == '0' ? false : is_native(name, cfg.egress));
-		let native_mode = ov.native || 'auto';
+		let native = ov.native_mode == '1' ? true : (ov.native_mode == '0' ? false : (ov.native == '1' ? true : (ov.native == '0' ? false : is_native(name, cfg.egress))));
+		let native_mode = length(ov.native_mode || '') ? ov.native_mode : (ov.native || 'auto');
 		seen[id] = true;
 		push(nodes, {
 			id: id,
@@ -188,4 +197,4 @@ function find_node(nodes, id) {
 	return null;
 }
 
-export { classify_country, is_native, node_fingerprint, node_tag, collect_nodes, group_nodes, find_node };
+export { classify_country, is_native, node_fingerprint, node_tag, override_key, collect_nodes, group_nodes, find_node };

@@ -151,8 +151,14 @@ msgstr "核心来源"
 msgid "Core update"
 msgstr "核心更新"
 
+msgid "Core updated to %s"
+msgstr "核心已更新到 %s"
+
 msgid "Core version"
 msgstr "核心版本"
+
+msgid "Core version pin"
+msgstr "核心版本锁定"
 
 msgid "Country"
 msgstr "国家"
@@ -198,6 +204,9 @@ msgstr "下载"
 
 msgid "Download dashboard files"
 msgstr "下载面板文件"
+
+msgid "Downloading %s"
+msgstr "正在下载 %s"
 
 msgid "Downloading dashboard files..."
 msgstr "正在下载面板文件……"
@@ -267,6 +276,9 @@ msgstr "安装 yq"
 
 msgid "Installed"
 msgstr "已安装"
+
+msgid "Installing %s"
+msgstr "正在安装 %s"
 
 msgid "Japan"
 msgstr "日本"
@@ -348,6 +360,9 @@ msgstr "原生节点不会加入 URLTest 组。"
 
 msgid "Network"
 msgstr "网络"
+
+msgid "New core failed to start, rolling back…"
+msgstr "新核心启动失败，正在回滚…"
 
 msgid "New secret generated. Save and restart the service to apply it."
 msgstr "已生成新密钥，保存并重启服务后生效。"
@@ -439,11 +454,17 @@ msgstr "代理组"
 msgid "Proxy groups"
 msgstr "代理组"
 
+msgid "Querying the latest version…"
+msgstr "正在查询最新版本…"
+
 msgid "Refresh"
 msgstr "刷新"
 
 msgid "Refresh interval (hours)"
 msgstr "刷新间隔（小时）"
+
+msgid "Refreshed"
+msgstr "已刷新"
 
 msgid "Reload the page to use the new UI."
 msgstr "刷新页面以使用新的界面。"
@@ -465,6 +486,9 @@ msgstr "重启失败"
 
 msgid "Restarted"
 msgstr "已重启"
+
+msgid "Restarting with %s…"
+msgstr "正在用 %s 重启…"
 
 msgid "Rollback Core"
 msgstr "回滚核心"
@@ -550,6 +574,9 @@ msgstr "已启动"
 msgid "Status"
 msgstr "状态"
 
+msgid "Still running, check back later."
+msgstr "仍在进行中，稍后刷新查看。"
+
 msgid "Stop"
 msgstr "停止"
 
@@ -603,6 +630,15 @@ msgstr "流量"
 
 msgid "Type"
 msgstr "类型"
+
+msgid "Update failed: %s"
+msgstr "更新失败：%s"
+
+msgid "Update started, progress is shown below."
+msgstr "更新已开始，进度见下方。"
+
+msgid "Update state"
+msgstr "更新状态"
 
 msgid "URI list / base64"
 msgstr "URI 列表 / base64"

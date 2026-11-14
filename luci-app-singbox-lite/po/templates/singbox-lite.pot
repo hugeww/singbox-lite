@@ -150,7 +150,13 @@ msgstr ""
 msgid "Core update"
 msgstr ""
 
+msgid "Core updated to %s"
+msgstr ""
+
 msgid "Core version"
+msgstr ""
+
+msgid "Core version pin"
 msgstr ""
 
 msgid "Country"
@@ -196,6 +202,9 @@ msgid "Download"
 msgstr ""
 
 msgid "Download dashboard files"
+msgstr ""
+
+msgid "Downloading %s"
 msgstr ""
 
 msgid "Downloading dashboard files..."
@@ -265,6 +274,9 @@ msgid "Install yq"
 msgstr ""
 
 msgid "Installed"
+msgstr ""
+
+msgid "Installing %s"
 msgstr ""
 
 msgid "Japan"
@@ -346,6 +358,9 @@ msgid "Native nodes are excluded from URLTest groups."
 msgstr ""
 
 msgid "Network"
+msgstr ""
+
+msgid "New core failed to start, rolling back…"
 msgstr ""
 
 msgid "New secret generated. Save and restart the service to apply it."
@@ -438,10 +453,16 @@ msgstr ""
 msgid "Proxy groups"
 msgstr ""
 
+msgid "Querying the latest version…"
+msgstr ""
+
 msgid "Refresh"
 msgstr ""
 
 msgid "Refresh interval (hours)"
+msgstr ""
+
+msgid "Refreshed"
 msgstr ""
 
 msgid "Reload the page to use the new UI."
@@ -463,6 +484,9 @@ msgid "Restart failed"
 msgstr ""
 
 msgid "Restarted"
+msgstr ""
+
+msgid "Restarting with %s…"
 msgstr ""
 
 msgid "Rollback Core"
@@ -549,6 +573,9 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
+msgid "Still running, check back later."
+msgstr ""
+
 msgid "Stop"
 msgstr ""
 
@@ -601,6 +628,15 @@ msgid "Traffic"
 msgstr ""
 
 msgid "Type"
+msgstr ""
+
+msgid "Update failed: %s"
+msgstr ""
+
+msgid "Update started, progress is shown below."
+msgstr ""
+
+msgid "Update state"
 msgstr ""
 
 msgid "URI list / base64"

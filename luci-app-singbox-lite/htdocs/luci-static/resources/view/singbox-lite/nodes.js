@@ -41,7 +41,10 @@ function countrySelect(node) {
 }
 
 function nativeSelect(node) {
-	let current = node.native_mode || (node.native ? '1' : '0');
+	// native_mode already carries the decision: 'auto' keeps the keyword match,
+	// '1'/'0' is an explicit override. Never collapse 'auto' into a node's
+	// *effective* state, or the user cannot tell why a node is where it is.
+	let current = node.native_mode || 'auto';
 	let opts = [
 		E('option', { value: 'auto', selected: current == 'auto' ? true : null }, _('Auto')),
 		E('option', { value: '1', selected: current == '1' ? true : null }, _('Yes')),
