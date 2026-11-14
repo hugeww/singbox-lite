@@ -6,13 +6,25 @@ msgstr ""
 "Last-Translator: singbox-lite contributors\n"
 "MIME-Version: 1.0\n"
 
+msgid "API secret"
+msgstr ""
+
+msgid "Action failed"
+msgstr ""
+
 msgid "Actions"
+msgstr ""
+
+msgid "Active connections"
 msgstr ""
 
 msgid "Add airport or self-hosted subscriptions. Base64/URI lists, sing-box JSON and Clash YAML (with yq) are supported."
 msgstr ""
 
 msgid "All DNS through proxy"
+msgstr ""
+
+msgid "Architecture"
 msgstr ""
 
 msgid "Auto"
@@ -54,13 +66,28 @@ msgstr ""
 msgid "Built-in rule sets are read-only; custom rule sets are evaluated before built-in ones. Select the egress group each rule set should use."
 msgstr ""
 
+msgid "Cancel"
+msgstr ""
+
+msgid "Chain"
+msgstr ""
+
 msgid "Check Latest"
 msgstr ""
 
 msgid "Check failed"
 msgstr ""
 
+msgid "Check for updates"
+msgstr ""
+
 msgid "Check yq"
+msgstr ""
+
+msgid "Clash API is not reachable. Save the configuration and restart the service."
+msgstr ""
+
+msgid "Clash API used by the live panel page. Restart the service after changing it."
 msgstr ""
 
 msgid "Clash YAML (yq)"
@@ -90,6 +117,15 @@ msgstr ""
 msgid "Configuration saved. Restart the service to apply it."
 msgstr ""
 
+msgid "Connection closed"
+msgstr ""
+
+msgid "Connections"
+msgstr ""
+
+msgid "Continue"
+msgstr ""
+
 msgid "Core"
 msgstr ""
 
@@ -105,7 +141,7 @@ msgstr ""
 msgid "Core update"
 msgstr ""
 
-msgid "Core version pin"
+msgid "Core version"
 msgstr ""
 
 msgid "Country"
@@ -141,10 +177,16 @@ msgstr ""
 msgid "Direct"
 msgstr ""
 
+msgid "Download"
+msgstr ""
+
 msgid "Egress Groups"
 msgstr ""
 
 msgid "Egress group"
+msgstr ""
+
+msgid "Enable panel"
 msgstr ""
 
 msgid "Enable username/password"
@@ -153,7 +195,16 @@ msgstr ""
 msgid "Enabled"
 msgstr ""
 
+msgid "Error"
+msgstr ""
+
 msgid "Format"
+msgstr ""
+
+msgid "Generate secret"
+msgstr ""
+
+msgid "Go to Settings"
 msgstr ""
 
 msgid "Hong Kong"
@@ -166,6 +217,9 @@ msgid "Hong Kong group"
 msgstr ""
 
 msgid "Hong Kong name keywords"
+msgstr ""
+
+msgid "Host"
 msgstr ""
 
 msgid "ID"
@@ -207,10 +261,19 @@ msgstr ""
 msgid "Last update"
 msgstr ""
 
+msgid "Latest"
+msgstr ""
+
+msgid "Latest available"
+msgstr ""
+
 msgid "Listen address"
 msgstr ""
 
 msgid "Listen port"
+msgstr ""
+
+msgid "Live status, proxy groups and connections from the sing-box Clash API."
 msgstr ""
 
 msgid "Local .srs path"
@@ -240,6 +303,9 @@ msgstr ""
 msgid "Member nodes"
 msgstr ""
 
+msgid "Mode"
+msgstr ""
+
 msgid "Name"
 msgstr ""
 
@@ -258,13 +324,25 @@ msgstr ""
 msgid "Native nodes are excluded from URLTest groups."
 msgstr ""
 
+msgid "Network"
+msgstr ""
+
+msgid "New secret generated. Save and restart the service to apply it."
+msgstr ""
+
 msgid "No"
+msgstr ""
+
+msgid "No active connections."
 msgstr ""
 
 msgid "No log output."
 msgstr ""
 
 msgid "No nodes yet. Update a subscription or add a manual node."
+msgstr ""
+
+msgid "No proxy groups yet."
 msgstr ""
 
 msgid "Nodes"
@@ -288,6 +366,12 @@ msgstr ""
 msgid "Overview"
 msgstr ""
 
+msgid "Panel"
+msgstr ""
+
+msgid "Panel is disabled. Enable it in Settings and restart the service."
+msgstr ""
+
 msgid "Password"
 msgstr ""
 
@@ -297,13 +381,37 @@ msgstr ""
 msgid "Path"
 msgstr ""
 
+msgid "Plugin"
+msgstr ""
+
+msgid "Plugin update"
+msgstr ""
+
+msgid "Plugin updated to "
+msgstr ""
+
+msgid "Plugin version"
+msgstr ""
+
+msgid "Port"
+msgstr ""
+
 msgid "Preview Config"
+msgstr ""
+
+msgid "Proxy group"
+msgstr ""
+
+msgid "Proxy groups"
 msgstr ""
 
 msgid "Refresh"
 msgstr ""
 
 msgid "Refresh interval (hours)"
+msgstr ""
+
+msgid "Reload the page to use the new UI."
 msgstr ""
 
 msgid "Remote .srs URL"
@@ -333,6 +441,9 @@ msgstr ""
 msgid "Rolled back to "
 msgstr ""
 
+msgid "Rule"
+msgstr ""
+
 msgid "Rule Sets & Routing"
 msgstr ""
 
@@ -358,6 +469,15 @@ msgid "Saved; restart required"
 msgstr ""
 
 msgid "Scheduled subscription refresh"
+msgstr ""
+
+msgid "Select version"
+msgstr ""
+
+msgid "Selected node"
+msgstr ""
+
+msgid "Selection failed"
 msgstr ""
 
 msgid "Selector (manual)"
@@ -423,7 +543,19 @@ msgstr ""
 msgid "System DNS only"
 msgstr ""
 
+msgid "Test failed"
+msgstr ""
+
 msgid "Test interval"
+msgstr ""
+
+msgid "Test latency"
+msgstr ""
+
+msgid "The selected release will be downloaded and installed with apk, replacing singbox-lite and luci-app-singbox-lite."
+msgstr ""
+
+msgid "The selected sing-box version will be downloaded, verified and the service restarted."
 msgstr ""
 
 msgid "Tolerance (ms)"
@@ -465,16 +597,28 @@ msgstr ""
 msgid "Update Core"
 msgstr ""
 
+msgid "Update core"
+msgstr ""
+
 msgid "Update failed"
 msgstr ""
 
+msgid "Update plugin"
+msgstr ""
+
 msgid "Update started. Check status later."
+msgstr ""
+
+msgid "Update started. Waiting for completion..."
 msgstr ""
 
 msgid "Update started; refresh later for status"
 msgstr ""
 
 msgid "Updated"
+msgstr ""
+
+msgid "Upload"
 msgstr ""
 
 msgid "User-Agent"
@@ -484,6 +628,12 @@ msgid "Username"
 msgstr ""
 
 msgid "Version"
+msgstr ""
+
+msgid "Version list refreshed."
+msgstr ""
+
+msgid "Versions"
 msgstr ""
 
 msgid "Warnings"
@@ -506,4 +656,3 @@ msgstr ""
 
 msgid "yq"
 msgstr ""
-

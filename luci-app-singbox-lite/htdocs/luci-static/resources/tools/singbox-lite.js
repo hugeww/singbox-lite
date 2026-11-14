@@ -48,6 +48,45 @@ const callCoreUpdateStatus = rpc.declare({
 const callCoreRollback = rpc.declare({
 	object: 'luci.singbox_lite', method: 'core_rollback', expect: { '': {} }
 });
+const callReleaseList = rpc.declare({
+	object: 'luci.singbox_lite', method: 'release_list', expect: { '': {} }
+});
+const callReleaseScan = rpc.declare({
+	object: 'luci.singbox_lite', method: 'release_scan', expect: { '': {} }
+});
+const callPluginStatus = rpc.declare({
+	object: 'luci.singbox_lite', method: 'plugin_status', expect: { '': {} }
+});
+const callPluginCheck = rpc.declare({
+	object: 'luci.singbox_lite', method: 'plugin_check', expect: { '': {} }
+});
+const callPluginUpdate = rpc.declare({
+	object: 'luci.singbox_lite', method: 'plugin_update', params: [ 'version', 'mirror' ], expect: { '': {} }
+});
+const callPluginUpdateStatus = rpc.declare({
+	object: 'luci.singbox_lite', method: 'plugin_update_status', expect: { '': {} }
+});
+const callPanelStatus = rpc.declare({
+	object: 'luci.singbox_lite', method: 'panel_status', expect: { '': {} }
+});
+const callPanelProxies = rpc.declare({
+	object: 'luci.singbox_lite', method: 'panel_proxies', expect: { '': {} }
+});
+const callPanelConnections = rpc.declare({
+	object: 'luci.singbox_lite', method: 'panel_connections', params: [ 'limit' ], expect: { '': {} }
+});
+const callPanelSelect = rpc.declare({
+	object: 'luci.singbox_lite', method: 'panel_select', params: [ 'group', 'node' ], expect: { '': {} }
+});
+const callPanelDelay = rpc.declare({
+	object: 'luci.singbox_lite', method: 'panel_delay', params: [ 'group' ], expect: { '': {} }
+});
+const callPanelClose = rpc.declare({
+	object: 'luci.singbox_lite', method: 'panel_close', params: [ 'id' ], expect: { '': {} }
+});
+const callPanelSecret = rpc.declare({
+	object: 'luci.singbox_lite', method: 'panel_secret', expect: { '': {} }
+});
 const callRulesetUpdate = rpc.declare({
 	object: 'luci.singbox_lite', method: 'ruleset_update', params: [ 'id' ], expect: { '': {} }
 });
@@ -80,6 +119,19 @@ return baseclass.extend({
 	coreUpdate: (version, asset, mirror) => callCoreUpdate(version || null, asset || null, mirror || null),
 	coreUpdateStatus: () => callCoreUpdateStatus(),
 	coreRollback: () => callCoreRollback(),
+	releaseList: () => callReleaseList(),
+	releaseScan: () => callReleaseScan(),
+	pluginStatus: () => callPluginStatus(),
+	pluginCheck: () => callPluginCheck(),
+	pluginUpdate: (version, mirror) => callPluginUpdate(version || null, mirror || null),
+	pluginUpdateStatus: () => callPluginUpdateStatus(),
+	panelStatus: () => callPanelStatus(),
+	panelProxies: () => callPanelProxies(),
+	panelConnections: (limit) => callPanelConnections(limit || 30),
+	panelSelect: (group, node) => callPanelSelect(group, node),
+	panelDelay: (group) => callPanelDelay(group),
+	panelClose: (id) => callPanelClose(id),
+	panelSecret: () => callPanelSecret(),
 	rulesetUpdate: (id) => callRulesetUpdate(id || null),
 	logTail: (lines) => callLogTail(lines || 100),
 	logClear: () => callLogClear(),

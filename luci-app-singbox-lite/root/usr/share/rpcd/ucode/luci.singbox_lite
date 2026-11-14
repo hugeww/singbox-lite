@@ -6,6 +6,8 @@ import { popen, readfile, writefile } from 'fs';
 
 const CLI = '/usr/bin/singbox-lite';
 const CORE_STATUS_FILE = '/tmp/singbox-lite/core-update.json';
+const PLUGIN_STATUS_FILE = '/tmp/singbox-lite/plugin-update.json';
+const RELEASES_FILE = '/tmp/singbox-lite/releases.json';
 const REFRESH_STATUS_FILE = '/tmp/singbox-lite/refresh.json';
 
 function trim(s) { return s == null ? '' : ltrim(rtrim(s)); }
@@ -135,6 +137,64 @@ const methods = {
 	},
 	core_rollback: {
 		call: function() { return run_cli([ 'core-rollback', '--json' ]); }
+	},
+	release_list: {
+		call: function() { return read_json_file(RELEASES_FILE, { ok: true, core: [], plugin: [], checked_at: '' }); }
+	},
+	release_scan: {
+		call: function() { return run_cli([ 'release-scan', '--json' ]); }
+	},
+	plugin_status: {
+		call: function() { return run_cli([ 'plugin-status', '--json' ]); }
+	},
+	plugin_check: {
+		call: function() { return run_cli([ 'plugin-check', '--json' ]); }
+	},
+	plugin_update: {
+		args: { version: 'version', mirror: 'mirror' },
+		call: function(req) {
+			let argv = [ 'update-plugin', '--json' ];
+			if (req.args?.version) { push(argv, '--version'); push(argv, req.args.version); }
+			if (req.args?.mirror) { push(argv, '--mirror'); push(argv, req.args.mirror); }
+			let ok = run_cli_bg(argv, '/tmp/singbox-lite-plugin-update.log');
+			return { ok: ok, started: true };
+		}
+	},
+	plugin_update_status: {
+		call: function() { return read_json_file(PLUGIN_STATUS_FILE, { state: 'idle' }); }
+	},
+	panel_status: {
+		call: function() { return run_cli([ 'panel-status', '--json' ]); }
+	},
+	panel_proxies: {
+		call: function() { return run_cli([ 'panel-proxies', '--json' ]); }
+	},
+	panel_connections: {
+		args: { limit: 'limit' },
+		call: function(req) {
+			return run_cli([ 'panel-connections', '--limit', sprintf('%d', int(req.args?.limit || 30)), '--json' ]);
+		}
+	},
+	panel_select: {
+		args: { group: 'group', node: 'node' },
+		call: function(req) {
+			return run_cli([ 'panel-select', '--group', req.args?.group || '', '--node', req.args?.node || '', '--json' ]);
+		}
+	},
+	panel_delay: {
+		args: { group: 'group' },
+		call: function(req) {
+			return run_cli([ 'panel-delay', '--group', req.args?.group || '', '--json' ]);
+		}
+	},
+	panel_close: {
+		args: { id: 'id' },
+		call: function(req) {
+			return run_cli([ 'panel-close', '--id', req.args?.id || '', '--json' ]);
+		}
+	},
+	panel_secret: {
+		call: function() { return run_cli([ 'panel-secret', '--json' ]); }
 	},
 	ruleset_update: {
 		args: { id: 'id' },

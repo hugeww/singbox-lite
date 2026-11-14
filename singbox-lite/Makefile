@@ -54,6 +54,9 @@ define Package/singbox-lite/install
 	$(INSTALL_DATA) ./files/usr/share/singbox-lite/ucode/subs.uc $(1)/usr/share/ucode/sbx_subs.uc
 	$(INSTALL_DATA) ./files/usr/share/singbox-lite/ucode/generator.uc $(1)/usr/share/ucode/sbx_generator.uc
 	$(INSTALL_DATA) ./files/usr/share/singbox-lite/ucode/core.uc $(1)/usr/share/ucode/sbx_core.uc
+	$(INSTALL_DATA) ./files/usr/share/singbox-lite/ucode/releases.uc $(1)/usr/share/ucode/sbx_releases.uc
+	$(INSTALL_DATA) ./files/usr/share/singbox-lite/ucode/plugin.uc $(1)/usr/share/ucode/sbx_plugin.uc
+	$(INSTALL_DATA) ./files/usr/share/singbox-lite/ucode/panel.uc $(1)/usr/share/ucode/sbx_panel.uc
 
 	$(INSTALL_DIR) $(1)/usr/share/singbox-lite/rulesets
 	$(INSTALL_DATA) ./files/usr/share/singbox-lite/rulesets/* $(1)/usr/share/singbox-lite/rulesets/

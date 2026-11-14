@@ -7,14 +7,26 @@ msgstr ""
 "Last-Translator: singbox-lite contributors\n"
 "MIME-Version: 1.0\n"
 
+msgid "API secret"
+msgstr "API 密钥"
+
+msgid "Action failed"
+msgstr "操作失败"
+
 msgid "Actions"
 msgstr "操作"
+
+msgid "Active connections"
+msgstr "活动连接"
 
 msgid "Add airport or self-hosted subscriptions. Base64/URI lists, sing-box JSON and Clash YAML (with yq) are supported."
 msgstr "添加机场或自建订阅。支持 base64/URI 列表、sing-box JSON 和 Clash YAML（需要 yq）。"
 
 msgid "All DNS through proxy"
 msgstr "全部 DNS 走代理"
+
+msgid "Architecture"
+msgstr "处理器架构"
 
 msgid "Auto"
 msgstr "自动"
@@ -55,14 +67,29 @@ msgstr "内置组按节点国家划分；原生组为手动选择，不参与自
 msgid "Built-in rule sets are read-only; custom rule sets are evaluated before built-in ones. Select the egress group each rule set should use."
 msgstr "内置规则集内容只读；自定义规则集先于内置规则求值。请为每个规则集选择出口组。"
 
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Chain"
+msgstr "链路"
+
 msgid "Check Latest"
 msgstr "检查最新版本"
 
 msgid "Check failed"
 msgstr "检查失败"
 
+msgid "Check for updates"
+msgstr "检查更新"
+
 msgid "Check yq"
 msgstr "检查 yq"
+
+msgid "Clash API is not reachable. Save the configuration and restart the service."
+msgstr "无法连接 Clash API，请保存配置并重启服务。"
+
+msgid "Clash API used by the live panel page. Restart the service after changing it."
+msgstr "面板页使用的 Clash API，修改后需重启服务。"
 
 msgid "Clash YAML (yq)"
 msgstr "Clash YAML（yq）"
@@ -91,6 +118,15 @@ msgstr "配置状态"
 msgid "Configuration saved. Restart the service to apply it."
 msgstr "配置已保存，重启服务后生效。"
 
+msgid "Connection closed"
+msgstr "连接已关闭"
+
+msgid "Connections"
+msgstr "连接"
+
+msgid "Continue"
+msgstr "继续"
+
 msgid "Core"
 msgstr "核心"
 
@@ -106,8 +142,8 @@ msgstr "核心来源"
 msgid "Core update"
 msgstr "核心更新"
 
-msgid "Core version pin"
-msgstr "核心版本锁定"
+msgid "Core version"
+msgstr "核心版本"
 
 msgid "Country"
 msgstr "国家"
@@ -142,11 +178,17 @@ msgstr "已识别节点"
 msgid "Direct"
 msgstr "直连"
 
+msgid "Download"
+msgstr "下载"
+
 msgid "Egress Groups"
 msgstr "出口组"
 
 msgid "Egress group"
 msgstr "出口组"
+
+msgid "Enable panel"
+msgstr "启用面板"
 
 msgid "Enable username/password"
 msgstr "启用用户名/密码"
@@ -154,8 +196,17 @@ msgstr "启用用户名/密码"
 msgid "Enabled"
 msgstr "已启用"
 
+msgid "Error"
+msgstr "错误"
+
 msgid "Format"
 msgstr "格式"
+
+msgid "Generate secret"
+msgstr "生成密钥"
+
+msgid "Go to Settings"
+msgstr "前往设置"
 
 msgid "Hong Kong"
 msgstr "香港"
@@ -168,6 +219,9 @@ msgstr "香港组"
 
 msgid "Hong Kong name keywords"
 msgstr "香港名称关键词"
+
+msgid "Host"
+msgstr "主机"
 
 msgid "ID"
 msgstr "ID"
@@ -208,11 +262,20 @@ msgstr "日本名称关键词"
 msgid "Last update"
 msgstr "上次更新"
 
+msgid "Latest"
+msgstr "最新"
+
+msgid "Latest available"
+msgstr "最新可用版本"
+
 msgid "Listen address"
 msgstr "监听地址"
 
 msgid "Listen port"
 msgstr "监听端口"
+
+msgid "Live status, proxy groups and connections from the sing-box Clash API."
+msgstr "来自 sing-box Clash API 的实时状态、代理组与连接。"
 
 msgid "Local .srs path"
 msgstr "本地 .srs 路径"
@@ -241,6 +304,9 @@ msgstr "手动节点"
 msgid "Member nodes"
 msgstr "成员节点"
 
+msgid "Mode"
+msgstr "模式"
+
 msgid "Name"
 msgstr "名称"
 
@@ -259,14 +325,26 @@ msgstr "原生组"
 msgid "Native nodes are excluded from URLTest groups."
 msgstr "原生节点不会加入 URLTest 组。"
 
+msgid "Network"
+msgstr "网络"
+
+msgid "New secret generated. Save and restart the service to apply it."
+msgstr "已生成新密钥，保存并重启服务后生效。"
+
 msgid "No"
 msgstr "否"
+
+msgid "No active connections."
+msgstr "暂无活动连接。"
 
 msgid "No log output."
 msgstr "暂无日志输出。"
 
 msgid "No nodes yet. Update a subscription or add a manual node."
 msgstr "暂无节点。请更新订阅或手动添加节点。"
+
+msgid "No proxy groups yet."
+msgstr "暂无代理组。"
 
 msgid "Nodes"
 msgstr "节点"
@@ -289,6 +367,12 @@ msgstr "其他国默认节点"
 msgid "Overview"
 msgstr "概况"
 
+msgid "Panel"
+msgstr "面板"
+
+msgid "Panel is disabled. Enable it in Settings and restart the service."
+msgstr "面板已禁用，请在设置中启用并重启服务。"
+
 msgid "Password"
 msgstr "密码"
 
@@ -298,14 +382,38 @@ msgstr "粘贴分享链接或完整的 sing-box 出口 JSON。"
 msgid "Path"
 msgstr "路径"
 
+msgid "Plugin"
+msgstr "插件"
+
+msgid "Plugin update"
+msgstr "插件更新"
+
+msgid "Plugin updated to "
+msgstr "插件已更新到 "
+
+msgid "Plugin version"
+msgstr "插件版本"
+
+msgid "Port"
+msgstr "端口"
+
 msgid "Preview Config"
 msgstr "预览配置"
+
+msgid "Proxy group"
+msgstr "代理组"
+
+msgid "Proxy groups"
+msgstr "代理组"
 
 msgid "Refresh"
 msgstr "刷新"
 
 msgid "Refresh interval (hours)"
 msgstr "刷新间隔（小时）"
+
+msgid "Reload the page to use the new UI."
+msgstr "刷新页面以使用新的界面。"
 
 msgid "Remote .srs URL"
 msgstr "远程 .srs 地址"
@@ -334,6 +442,9 @@ msgstr "回滚失败"
 msgid "Rolled back to "
 msgstr "已回滚到 "
 
+msgid "Rule"
+msgstr "规则"
+
 msgid "Rule Sets & Routing"
 msgstr "规则集与分流"
 
@@ -360,6 +471,15 @@ msgstr "已保存，需重启生效"
 
 msgid "Scheduled subscription refresh"
 msgstr "定时刷新订阅"
+
+msgid "Select version"
+msgstr "选择版本"
+
+msgid "Selected node"
+msgstr "已选择节点"
+
+msgid "Selection failed"
+msgstr "切换失败"
 
 msgid "Selector (manual)"
 msgstr "Selector（手动）"
@@ -424,8 +544,20 @@ msgstr "系统 /usr/bin/sing-box（≥ 1.14.4）"
 msgid "System DNS only"
 msgstr "仅使用系统 DNS"
 
+msgid "Test failed"
+msgstr "测速失败"
+
 msgid "Test interval"
 msgstr "测速间隔"
+
+msgid "Test latency"
+msgstr "测速"
+
+msgid "The selected release will be downloaded and installed with apk, replacing singbox-lite and luci-app-singbox-lite."
+msgstr "将通过 apk 下载并安装所选版本，覆盖 singbox-lite 与 luci-app-singbox-lite。"
+
+msgid "The selected sing-box version will be downloaded, verified and the service restarted."
+msgstr "将下载并校验所选 sing-box 版本，然后重启服务。"
 
 msgid "Tolerance (ms)"
 msgstr "容差（毫秒）"
@@ -466,17 +598,29 @@ msgstr "更新内置规则集"
 msgid "Update Core"
 msgstr "更新核心"
 
+msgid "Update core"
+msgstr "更新核心"
+
 msgid "Update failed"
 msgstr "更新失败"
 
+msgid "Update plugin"
+msgstr "更新插件"
+
 msgid "Update started. Check status later."
 msgstr "更新已开始，稍后查看状态。"
+
+msgid "Update started. Waiting for completion..."
+msgstr "更新已开始，等待完成……"
 
 msgid "Update started; refresh later for status"
 msgstr "更新已开始，稍后刷新查看状态"
 
 msgid "Updated"
 msgstr "已更新"
+
+msgid "Upload"
+msgstr "上传"
 
 msgid "User-Agent"
 msgstr "User-Agent"
@@ -485,6 +629,12 @@ msgid "Username"
 msgstr "用户名"
 
 msgid "Version"
+msgstr "版本"
+
+msgid "Version list refreshed."
+msgstr "版本列表已刷新。"
+
+msgid "Versions"
 msgstr "版本"
 
 msgid "Warnings"
@@ -507,4 +657,3 @@ msgstr "sing-box Lite"
 
 msgid "yq"
 msgstr "yq"
-

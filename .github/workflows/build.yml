@@ -67,7 +67,7 @@ jobs:
           export SINGBOX_LITE_ETC=/tmp/singbox-lite-test
           export SINGBOX_LITE_TESTDIR="$PWD"
           mkdir -p /tmp/sbxmods
-          for m in common config links nodes rulesets subs generator core; do
+          for m in common config links nodes rulesets subs generator core releases plugin panel; do
             ln -sf "$SINGBOX_LITE_LIB/ucode/$m.uc" "/tmp/sbxmods/sbx_$m.uc"
           done
           "$UCODE_BIN" -L /tmp/sbxmods tests/run.uc

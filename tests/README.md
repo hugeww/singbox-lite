@@ -23,7 +23,7 @@ export SINGBOX_LITE_LIB="$PWD/singbox-lite/files/usr/share/singbox-lite"
 export SINGBOX_LITE_ETC=/tmp/singbox-lite-test
 export SINGBOX_LITE_TESTDIR="$PWD"
 mkdir -p /tmp/sbxmods
-for m in common config links nodes rulesets subs generator core; do
+for m in common config links nodes rulesets subs generator core releases plugin panel; do
   ln -sf "$SINGBOX_LITE_LIB/ucode/$m.uc" "/tmp/sbxmods/sbx_$m.uc"
 done
 /tmp/ucode/build/ucode -L /tmp/sbxmods tests/run.uc

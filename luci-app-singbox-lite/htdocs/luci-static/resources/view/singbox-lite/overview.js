@@ -97,6 +97,9 @@ return view.extend({
 		s = m.section(form.TableSection, 'placeholder_core', _('Core'));
 		s.anonymous = true;
 
+		o = s.option(form.DummyValue, '_plugin_version', _('Plugin version'));
+		o.cfgvalue = function() { return (status.plugin && status.plugin.version) || '-'; };
+
 		o = s.option(form.DummyValue, '_core_version', _('Version'));
 		o.cfgvalue = function() { return coreInfo.version || '-'; };
 

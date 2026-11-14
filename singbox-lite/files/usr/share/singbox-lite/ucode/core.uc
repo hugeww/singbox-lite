@@ -2,8 +2,10 @@
 
 import { trim, read_text, read_json, write_json, mkdir_p, file_exists, run_capture, log_app, PATH, human_size, now_string, sh_quote } from 'sbx_common';
 import { unlink, rename, stat, chmod, dirname } from 'fs';
+import { list_tags } from 'sbx_releases';
 
 const MIN_VERSION = '1.14.4';
+const CORE_REPO = 'SagerNet/sing-box';
 
 function version_parts(v) {
 	let out = [];
@@ -54,13 +56,20 @@ function core_status(cfg) {
 	};
 }
 
-function latest_tag() {
+function latest_tag(mirror) {
+	let l = list_tags(CORE_REPO, mirror || '', 5);
+	if (l.ok && length(l.tags)) return { ok: true, tag: l.tags[0] };
 	let r = run_capture("curl -sIL --connect-timeout 10 --max-time 30 -o /dev/null -w '%{url_effective}' 'https://github.com/SagerNet/sing-box/releases/latest'");
 	if (!r.ok) return { ok: false, error: '无法访问 GitHub releases' };
 	let url = trim(r.out);
 	let pos = rindex(url, '/tag/');
 	if (pos == null || pos < 0) return { ok: false, error: '无法解析最新版本' };
 	return { ok: true, tag: substr(url, pos + 5), url: url };
+}
+
+function core_tags(cfg, limit) {
+	let mirror = (cfg && cfg.main && cfg.main.core_mirror) || '';
+	return list_tags(CORE_REPO, mirror, limit || 10);
 }
 
 function arch_asset(arch) {
@@ -131,10 +140,10 @@ function write_binary(dst, src) {
 function update_core(cfg, opts) {
 	opts = opts || {};
 	let mirror = opts.mirror != null ? opts.mirror : ((cfg.main && cfg.main.core_mirror) || '');
-	let tag = opts.version || (cfg.main && cfg.main.core_version) || '';
+	let tag = opts.version || (cfg.version && cfg.version.core_tag) || (cfg.main && cfg.main.core_version) || '';
 	if (!length(tag)) {
 		write_status('checking', { message: '查询最新版本' });
-		let latest = latest_tag();
+		let latest = latest_tag(mirror);
 		if (!latest.ok) { write_status('error', { error: latest.error }); return { ok: false, error: latest.error }; }
 		tag = latest.tag;
 	}
@@ -242,4 +251,4 @@ function rollback_core() {
 	return { ok: true, version: v };
 }
 
-export { MIN_VERSION, version_parts, version_ge, core_path, core_version, core_status, latest_tag, arch_asset, download_url, update_core, rollback_core };
+export { MIN_VERSION, CORE_REPO, version_parts, version_ge, core_path, core_version, core_status, latest_tag, core_tags, arch_asset, download_url, update_core, rollback_core };

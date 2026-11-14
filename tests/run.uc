@@ -7,6 +7,9 @@ import { classify_country, is_native, node_fingerprint } from 'sbx_nodes';
 import { build_config } from 'sbx_generator';
 import { resolve_rulesets } from 'sbx_rulesets';
 import { arch_asset, version_ge } from 'sbx_core';
+import { parse_tags, parse_release_page, mirror_url } from 'sbx_releases';
+import { asset_name, download_url, base_version, parse_apk_list, parse_apk_db } from 'sbx_plugin';
+import { pct, proxy_groups, connection_list, panel_config, last_delay } from 'sbx_panel';
 import { PATH } from 'sbx_common';
 
 let failures = 0;
@@ -100,6 +103,38 @@ check(rr.rules[0].target == 'direct', 'built-in CN target direct');
 check(arch_asset('x86_64') == 'amd64-musl', 'arch x86_64');
 check(arch_asset('aarch64_cortex-a53') == 'arm64-musl', 'arch aarch64');
 check(version_ge('1.14.4', '1.14.4') && !version_ge('1.13.21', '1.14.4'), 'version comparison');
+
+/* release listing and plugin version helpers */
+let releases = parse_tags('[{"tag_name":"v1.14.4","draft":false,"prerelease":false},{"tag_name":"v1.15.0-alpha.1","prerelease":true},{"tag_name":"v1.14.4"},{"tag_name":""}]', 10);
+check(length(releases) == 1 && releases[0] == 'v1.14.4', 'release tags skip prerelease and duplicates');
+check(length(parse_tags('not json', 10)) == 0, 'invalid release JSON yields no tags');
+check(join(',', parse_release_page('<a href="/x/releases/tag/v1.2.3">a</a><a href="/x/releases/tag/v1.2.3">b</a><a href="/x/releases/tag/v1.2.2">c</a>', 10)) == 'v1.2.3,v1.2.2', 'release page HTML fallback parse');
+check(mirror_url('https://api.github.com/repos/x/y', 'https://ghfast.top') == 'https://ghfast.top/https://api.github.com/repos/x/y', 'mirror prefix normalization');
+check(asset_name('x86_64') == 'singbox-lite-x86_64-openwrt-25.12.tar.gz', 'plugin asset name');
+check(asset_name('aarch64_cortex-a53') == 'singbox-lite-aarch64_cortex-a53-openwrt-25.12.tar.gz', 'plugin asset name arm64');
+let dl = download_url('0.2.0', 'x86_64', 'https://ghfast.top/');
+check(dl.tag == 'v0.2.0' && match(dl.url, /^https:\/\/ghfast\.top\/https:\/\/github\.com\/hugeww\/singbox-lite\/releases\/download\/v0\.2\.0\/singbox-lite-x86_64-openwrt-25\.12\.tar\.gz$/) != null, 'plugin download URL honours mirror');
+check(base_version('0.1.0-r1') == '0.1.0' && base_version('v0.2.0') == '0.2.0', 'package version base');
+check(parse_apk_list('luci-app-singbox-lite-0.1.0-r1 x86_64 {luci-app-singbox-lite} (GPL-3.0-or-later)', 'luci-app-singbox-lite') == '0.1.0-r1', 'apk list version parse');
+check(parse_apk_db('C:abc\nP:luci-app-singbox-lite\nV:0.1.0-r1\n\nP:other\nV:9', 'luci-app-singbox-lite') == '0.1.0-r1', 'apk db version parse');
+
+/* LuCI panel helpers */
+check(pct('US 01/东京') == 'US%2001%2F%E4%B8%9C%E4%BA%AC', 'panel percent encoding');
+let pc = panel_config({ panel: { enabled: '1', listen: '', port: '0', secret: ' s ' } });
+check(pc.enabled && pc.listen == '127.0.0.1' && pc.port == 9090 && pc.secret == 's', 'panel config defaults');
+let pdata = { proxies: {
+	default: { type: 'selector', now: 'a', all: [ 'a', 'b' ] },
+	a: { type: 'vless', history: [ { delay: 120 } ] },
+	b: { type: 'trojan' }
+} };
+let pg = proxy_groups(pdata);
+check(length(pg) == 1 && pg[0].now == 'a' && length(pg[0].members) == 2, 'panel proxy group parse');
+check(pg[0].members[0].delay == 120 && pg[0].members[1].delay == 0, 'panel member delay');
+let cl = connection_list({ downloadTotal: 1024, uploadTotal: 512, connections: [
+	{ id: 'x', metadata: { host: 'a.com', network: 'tcp', destinationPort: 443 }, chains: [ 'default', 'a' ], upload: 10, download: 20 }
+] }, 10);
+check(cl.download == 1024 && cl.upload == 512 && length(cl.connections) == 1, 'panel connection summary');
+check(cl.connections[0].chains[1] == 'a' && cl.connections[0].upload == 10, 'panel connection fields');
 
 if (failures) {
 	printf('FAILED: %d\n', failures);

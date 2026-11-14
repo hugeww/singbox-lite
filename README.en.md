@@ -12,7 +12,9 @@ A lightweight, bare-core sing-box manager for LuCI. It converts airport subscrip
 - Bare-core runtime: a single `mixed` inbound; no firewall/network/dhcp changes.
 - Scheduled subscription refresh with `sing-box check`, optional automatic restart and rollback safety.
 - Core manager: requires sing-box >= 1.14.4, downloads GitHub releases, verifies, atomically installs and rolls back on failure.
-- LuCI pages: Overview, Subscriptions, Nodes, Rule Sets & Routing, Egress Groups, Settings, Logs.
+- Version manager: shows the installed core and plugin versions, lists GitHub release tags, and updates either of them from the Settings page (the plugin is reinstalled with apk).
+- Live panel: real-time traffic, connection count, proxy-group switching and latency tests, and a connection list, powered by the sing-box Clash API (bound to `127.0.0.1` with a random secret and proxied through LuCI).
+- LuCI pages: Overview, Panel, Subscriptions, Nodes, Rule Sets & Routing, Egress Groups, Settings, Logs.
 
 ## Requirements
 

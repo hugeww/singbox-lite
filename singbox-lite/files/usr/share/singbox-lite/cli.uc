@@ -7,6 +7,9 @@ import { build_config } from 'sbx_generator';
 import { fetch_subscription } from 'sbx_subs';
 import { update_ruleset, update_builtin_rulesets } from 'sbx_rulesets';
 import { core_path, core_status, update_core, rollback_core, MIN_VERSION, version_ge, latest_tag, arch_asset, download_url } from 'sbx_core';
+import { plugin_status, plugin_check, update_plugin, PLUGIN_REPO } from 'sbx_plugin';
+import { list_tags, cache_read, cache_write } from 'sbx_releases';
+import { panel_status, panel_proxies, panel_select, panel_delay, panel_connections, panel_close, random_secret } from 'sbx_panel';
 import { unlink, rename, dirname } from 'fs';
 import { parse_link } from 'sbx_links';
 
@@ -117,7 +120,21 @@ function sync_cron(cfg) {
 	write_text(PATH.cron_file, text, 384);
 	run_capture('/etc/init.d/cron reload >/dev/null 2>&1 || true');
 }
+function ensure_panel_secret(cfg) {
+	if (!cfg.panel) cfg.panel = {};
+	if (cfg.panel.enabled != '1') return false;
+	if (length(trim(cfg.panel.secret || ''))) return false;
+	let secret = random_secret();
+	cfg.panel.secret = secret;
+	if (getenv('SINGBOX_LITE_CONFIG_JSON') == null) {
+		uci_set('panel', 'secret', secret);
+		uci_commit();
+	}
+	return true;
+}
+
 function cmd_check(cfg) {
+	ensure_panel_secret(cfg);
 	let gen = generate(cfg);
 	if (!gen.ok) return { ok: false, errors: gen.errors, warnings: gen.warnings };
 	let saved = save_config(cfg, gen);
@@ -129,6 +146,7 @@ function cmd_check(cfg) {
 }
 
 function cmd_build(cfg, opts) {
+	ensure_panel_secret(cfg);
 	let gen = generate(cfg);
 	if (!gen.ok) return { ok: false, errors: gen.errors, warnings: gen.warnings };
 	if (opts['dry-run']) return { ok: true, config: gen.config, warnings: gen.warnings };
@@ -138,6 +156,7 @@ function cmd_build(cfg, opts) {
 }
 
 function cmd_refresh(cfg, opts) {
+	ensure_panel_secret(cfg);
 	let updated = 0, failed = 0, results = [];
 	let only = opts.id || null;
 	for (let sub in cfg.subscriptions) {
@@ -216,7 +235,7 @@ function cmd_status(cfg) {
 	let pending = service_running() && length(active_hash) && length(cfg_hash) && active_hash != cfg_hash;
 	return {
 		ok: true, version: VERSION, running: service_running(), pid: service_pid(),
-		core: core, config_exists: file_exists(PATH.config_json), pending: pending,
+		core: core, plugin: plugin_status(), config_exists: file_exists(PATH.config_json), pending: pending,
 		nodes: length(collected.nodes), groups: {
 			us: length(groups.us), jp: length(groups.jp), hk: length(groups.hk),
 			other: length(groups.other), native: length(groups.native), auto: length(groups.auto)
@@ -245,6 +264,23 @@ function cmd_log(opts) {
 	return { ok: true, text: out };
 }
 
+function cmd_release_scan(cfg) {
+	let mirror = (cfg && cfg.main && cfg.main.core_mirror) || '';
+	let core = list_tags('SagerNet/sing-box', mirror, 10);
+	let plugin = list_tags(PLUGIN_REPO, mirror, 10);
+	let cached = cache_read();
+	let out = {
+		ok: core.ok || plugin.ok,
+		core: core.ok ? core.tags : (cached.core || []),
+		plugin: plugin.ok ? plugin.tags : (cached.plugin || []),
+		core_ok: core.ok,
+		plugin_ok: plugin.ok,
+		error: (!core.ok && !plugin.ok) ? (core.error || plugin.error) : null
+	};
+	cache_write(out);
+	return out;
+}
+
 function main() {
 	let argv = ARGV;
 	let cmd = argv[0] || 'help';
@@ -252,15 +288,16 @@ function main() {
 	let cfg = null;
 	try {
 		if (cmd == 'version') return output({ ok: true, version: VERSION });
-		if (cmd == 'help') return output({ ok: true, commands: [ 'preview', 'check', 'build', 'refresh', 'status', 'update-rulesets', 'update-core', 'core-check', 'core-rollback', 'parse-link', 'log' ] });
+		if (cmd == 'help') return output({ ok: true, commands: [ 'preview', 'check', 'build', 'refresh', 'status', 'update-rulesets', 'update-core', 'update-plugin', 'core-check', 'core-rollback', 'plugin-status', 'plugin-check', 'release-scan', 'panel-status', 'panel-proxies', 'panel-connections', 'panel-select', 'panel-delay', 'panel-close', 'panel-secret', 'parse-link', 'log' ] });
 		if (cmd == 'parse-link') {
 			let p = parse_link(opts._[0] || '');
 			return output(p);
 		}
 		if (cmd == 'core-rollback') return output(rollback_core());
+		if (cmd == 'plugin-status') return output(plugin_status());
 		if (cmd == 'core-check') {
 			try { cfg = load_config(); } catch (e) {}
-			let l = latest_tag();
+			let l = latest_tag((cfg && cfg.main && cfg.main.core_mirror) || '');
 			if (!l.ok) return output(l);
 			let asset = arch_asset();
 			if (!asset) return output({ ok: false, error: '当前架构没有可用资产' });
@@ -268,6 +305,23 @@ function main() {
 			return output({ ok: true, tag: l.tag, asset: asset, url: dl.url, version: dl.version });
 		}
 		cfg = load_config();
+		if (cmd == 'plugin-check') return output(plugin_check(cfg));
+		if (cmd == 'release-scan') return output(cmd_release_scan(cfg));
+		if (cmd == 'update-plugin') return output(update_plugin(cfg, opts));
+		if (cmd == 'panel-status') return output(panel_status(cfg));
+		if (cmd == 'panel-proxies') return output(panel_proxies(cfg));
+		if (cmd == 'panel-connections') return output(panel_connections(cfg, int(opts.limit || 30)));
+		if (cmd == 'panel-select') return output(panel_select(cfg, opts.group || '', opts.node || ''));
+		if (cmd == 'panel-delay') return output(panel_delay(cfg, opts.group || ''));
+		if (cmd == 'panel-close') return output(panel_close(cfg, opts.id || ''));
+		if (cmd == 'panel-secret') {
+			let secret = random_secret();
+			if (getenv('SINGBOX_LITE_CONFIG_JSON') == null) {
+				uci_set('panel', 'secret', secret);
+				uci_commit();
+			}
+			return output({ ok: true, secret: secret });
+		}
 		if (cmd == 'preview') {
 			let gen = generate(cfg);
 			if (!gen.ok) return output({ ok: false, errors: gen.errors, warnings: gen.warnings });

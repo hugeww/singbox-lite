@@ -222,6 +222,23 @@ function build_config(cfg, collected) {
 		}
 	}
 
+	let experimental = {
+		cache_file: { enabled: true, path: PATH.etc + '/cache.db' }
+	};
+	let panel = cfg.panel || {};
+	if (panel.enabled == '1') {
+		let listen = trim(panel.listen || '127.0.0.1');
+		if (!length(listen)) listen = '127.0.0.1';
+		let port = int(panel.port || 9090);
+		if (port < 1 || port > 65535) port = 9090;
+		let secret = trim(panel.secret || '');
+		if (!length(secret)) push(warnings, '面板已启用但 API 密钥为空，Clash API 将不校验密钥');
+		experimental.clash_api = {
+			external_controller: listen + ':' + port,
+			secret: secret
+		};
+	}
+
 	let config = {
 		log: { level: (cfg.main && cfg.main.log_level) || 'info', timestamp: true },
 		dns: dns,
@@ -234,9 +251,7 @@ function build_config(cfg, collected) {
 			default_domain_resolver: 'dns-direct',
 			auto_detect_interface: true
 		},
-		experimental: {
-			cache_file: { enabled: true, path: PATH.etc + '/cache.db' }
-		}
+		experimental: experimental
 	};
 	return { ok: true, config: config, warnings: warnings, errors: [] };
 }

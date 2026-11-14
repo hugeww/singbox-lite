@@ -25,6 +25,30 @@ ensure_ruleset rs_builtin_streaming '流媒体' builtin_streaming default
 ensure_ruleset rs_builtin_social '社交' builtin_social default
 ensure_ruleset rs_builtin_dev '开发' builtin_dev default
 
+# Ensure the version-pin sections exist after upgrades.
+if ! uci -q get singbox-lite.version >/dev/null 2>&1; then
+	uci set singbox-lite.version=version
+	uci set singbox-lite.version.plugin_tag=''
+fi
+if ! uci -q get singbox-lite.version_core >/dev/null 2>&1; then
+	uci set singbox-lite.version_core=version_core
+	uci set singbox-lite.version_core.core_tag=''
+fi
+
+# Ensure the Clash API panel section exists and has a secret.
+if ! uci -q get singbox-lite.panel >/dev/null 2>&1; then
+	uci set singbox-lite.panel=panel
+	uci set singbox-lite.panel.enabled=1
+	uci set singbox-lite.panel.listen=127.0.0.1
+	uci set singbox-lite.panel.port=9090
+fi
+if [ -z "$(uci -q get singbox-lite.panel.secret)" ]; then
+	uci set singbox-lite.panel.secret="$(head -c 16 /dev/urandom 2>/dev/null | md5sum 2>/dev/null | cut -c1-24)"
+	if [ -z "$(uci -q get singbox-lite.panel.secret)" ]; then
+		uci set singbox-lite.panel.secret="$(date +%s 2>/dev/null | md5sum 2>/dev/null | cut -c1-24)"
+	fi
+fi
+
 uci -q commit singbox-lite
 
 exit 0
