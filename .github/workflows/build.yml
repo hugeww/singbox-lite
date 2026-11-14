@@ -45,7 +45,7 @@ jobs:
           else
             version="${{ inputs.version }}"
             if [ -z "$version" ]; then
-              latest=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)
+              latest=$(git tag -l 'v*' | sed 's/^v//' | sort -V | tail -n 1)
               base=$(printf '%s\n%s\n' "$pkg" "$latest" | sed '/^$/d' | sort -V | tail -n 1)
               version=$(printf '%s' "$base" | awk -F. '{printf "%d.%d.%d", $1, $2, $3 + 1}')
             fi
