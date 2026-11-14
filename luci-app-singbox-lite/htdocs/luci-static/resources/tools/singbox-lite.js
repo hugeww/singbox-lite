@@ -1,6 +1,7 @@
 'use strict';
 
 'require baseclass';
+'require form';
 'require rpc';
 
 const callStatus = rpc.declare({
@@ -112,7 +113,25 @@ const callInstallYq = rpc.declare({
 	object: 'luci.singbox_lite', method: 'install_yq', expect: { '': {} }
 });
 
+/*
+ * Anonymous action/status table that is guaranteed to render a row.
+ *
+ * LuCI renders one table row per uci section of `sectiontype`. A made-up
+ * section type such as 'placeholder' has no backing section, so newer LuCI
+ * releases (observed with luci-base 26.249) produce zero rows and fall back
+ * to "This section contains no values yet", leaving the whole page blank.
+ * Binding the table to a section that always exists (default: 'main') keeps
+ * it working on both the old and the new LuCI rendering path, because
+ * DummyValue/Button options do not need real config data.
+ */
+function actionTable(map, title, sectiontype) {
+	const s = map.section(form.TableSection, sectiontype || 'main', title);
+	s.anonymous = true;
+	return s;
+}
+
 return baseclass.extend({
+	actionTable: (map, title, sectiontype) => actionTable(map, title, sectiontype),
 	status: () => callStatus(),
 	configPreview: () => callConfigPreview(),
 	configCheck: () => callConfigCheck(),

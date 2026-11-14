@@ -26,8 +26,7 @@ return view.extend({
 		let m = new form.Map('singbox-lite', _('sing-box Lite'),
 			_('Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates.'));
 
-		let s = m.section(form.TableSection, 'placeholder', _('Status'));
-		s.anonymous = true;
+		let s = api.actionTable(m, _('Status'));
 
 		let o = s.option(form.DummyValue, '_running', _('Service'));
 		o.cfgvalue = function() {
@@ -94,8 +93,7 @@ return view.extend({
 			});
 		};
 
-		s = m.section(form.TableSection, 'placeholder_core', _('Core'));
-		s.anonymous = true;
+		s = api.actionTable(m, _('Core'));
 
 		o = s.option(form.DummyValue, '_plugin_version', _('Plugin version'));
 		o.cfgvalue = function() { return (status.plugin && status.plugin.version) || '-'; };
@@ -130,8 +128,7 @@ return view.extend({
 		};
 
 		if (status.warnings && status.warnings.length) {
-			s = m.section(form.TableSection, 'placeholder_warnings', _('Warnings'));
-			s.anonymous = true;
+			s = api.actionTable(m, _('Warnings'));
 			o = s.option(form.DummyValue, '_warnings', _('Warnings'));
 			o.cfgvalue = function() { return status.warnings.join('\n'); };
 		}

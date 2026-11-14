@@ -83,8 +83,7 @@ return view.extend({
 		let m = new form.Map('singbox-lite', _('Settings'),
 			_('Service, inbound, DNS, automatic refresh and core settings.'));
 
-		let top = m.section(form.TableSection, 'placeholder_save', _('Actions'));
-		top.anonymous = true;
+		let top = api.actionTable(m, _('Actions'));
 		let saveBtn = top.option(form.Button, '_save_check', _('Save & Check Config'));
 		saveBtn.inputstyle = 'positive';
 		saveBtn.onclick = function() {

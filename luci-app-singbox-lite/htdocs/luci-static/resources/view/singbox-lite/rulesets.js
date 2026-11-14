@@ -30,8 +30,7 @@ return view.extend({
 		let m = new form.Map('singbox-lite', _('Rule Sets & Routing'),
 			_('Built-in rule sets are read-only; custom rule sets are evaluated before built-in ones. Select the egress group each rule set should use.'));
 
-		let top = m.section(form.TableSection, 'placeholder_ruleset_actions', _('Rule-set data'));
-		top.anonymous = true;
+		let top = api.actionTable(m, _('Rule-set data'));
 		let o = top.option(form.Button, '_update_builtin', _('Update Built-in Rule Sets'));
 		o.onclick = function() {
 			return api.rulesetUpdate(null).then(function(r) {
@@ -63,8 +62,7 @@ return view.extend({
 			s.option(form.DummyValue, '_kind', _('Type')).cfgvalue = function() { return _('Built-in (read-only content)'); };
 		}
 
-		let saveTop = m.section(form.TableSection, 'placeholder_save', _('Actions'));
-		saveTop.anonymous = true;
+		let saveTop = api.actionTable(m, _('Actions'));
 		let sb = saveTop.option(form.Button, '_save_check', _('Save & Check Config'));
 		sb.inputstyle = 'positive';
 		sb.onclick = function() {

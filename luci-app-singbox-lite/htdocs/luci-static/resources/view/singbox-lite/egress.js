@@ -61,8 +61,7 @@ return view.extend({
 		o = s.option(form.Value, 'native_keywords', _('Native IP name keywords'));
 		o.placeholder = '原生,原生IP,native,家宽,住宅,residential';
 
-		let saveTop = m.section(form.TableSection, 'placeholder_save', _('Actions'));
-		saveTop.anonymous = true;
+		let saveTop = api.actionTable(m, _('Actions'));
 		let sb = saveTop.option(form.Button, '_save_check', _('Save & Check Config'));
 		sb.inputstyle = 'positive';
 		sb.onclick = function() {

@@ -15,8 +15,7 @@ return view.extend({
 		let m = new form.Map('singbox-lite', _('Subscriptions'),
 			_('Add airport or self-hosted subscriptions. Base64/URI lists, sing-box JSON and Clash YAML (with yq) are supported.'));
 
-		let top = m.section(form.TableSection, 'placeholder_actions', _('Actions'));
-		top.anonymous = true;
+		let top = api.actionTable(m, _('Actions'));
 		let o = top.option(form.Button, '_update_all', _('Update All'));
 		o.inputstyle = 'positive';
 		o.onclick = function() {
