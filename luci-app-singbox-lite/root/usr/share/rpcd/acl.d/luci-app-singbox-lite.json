@@ -1,0 +1,31 @@
+{
+	"luci-app-singbox-lite": {
+		"description": "Grant access to sing-box Lite",
+		"read": {
+			"uci": [ "singbox-lite" ],
+			"ubus": {
+				"luci.singbox_lite": [ "*" ]
+			},
+			"file": {
+				"/etc/singbox-lite/*": [ "read" ],
+				"/etc/singbox-lite/subs/*": [ "read" ],
+				"/etc/singbox-lite/meta/*": [ "read" ],
+				"/etc/singbox-lite/rulesets/*": [ "read" ],
+				"/usr/share/singbox-lite/rulesets/*": [ "read" ],
+				"/var/log/singbox-lite/*": [ "read" ],
+				"/tmp/singbox-lite/*": [ "read" ]
+			}
+		},
+		"write": {
+			"uci": [ "singbox-lite" ],
+			"file": {
+				"/etc/singbox-lite/*": [ "write" ],
+				"/etc/singbox-lite/subs/*": [ "write" ],
+				"/etc/singbox-lite/meta/*": [ "write" ],
+				"/etc/singbox-lite/rulesets/*": [ "write" ],
+				"/var/log/singbox-lite/*": [ "write" ],
+				"/tmp/singbox-lite/*": [ "write" ]
+			}
+		}
+	}
+}

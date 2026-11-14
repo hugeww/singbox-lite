@@ -1,0 +1,30 @@
+#!/bin/sh
+
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+mkdir -p /etc/singbox-lite/subs /etc/singbox-lite/meta /etc/singbox-lite/rulesets
+mkdir -p /var/log/singbox-lite
+chmod 700 /etc/singbox-lite
+
+# Ensure the built-in rule-set sections exist after upgrades.
+ensure_ruleset() {
+	local section="$1" name="$2" source="$3" target="$4"
+	uci -q get "singbox-lite.$section" >/dev/null 2>&1 && return 0
+	uci set "singbox-lite.$section=ruleset"
+	uci set "singbox-lite.$section.kind=builtin"
+	uci set "singbox-lite.$section.name=$name"
+	uci set "singbox-lite.$section.source=$source"
+	uci set "singbox-lite.$section.target=$target"
+	uci set "singbox-lite.$section.enabled=1"
+}
+
+ensure_ruleset rs_builtin_cn_ai '国内 AI' builtin_cn_ai direct
+ensure_ruleset rs_builtin_cn '国内' builtin_cn direct
+ensure_ruleset rs_builtin_ai '国外 AI' builtin_ai default
+ensure_ruleset rs_builtin_streaming '流媒体' builtin_streaming default
+ensure_ruleset rs_builtin_social '社交' builtin_social default
+ensure_ruleset rs_builtin_dev '开发' builtin_dev default
+
+uci -q commit singbox-lite
+
+exit 0

@@ -1,0 +1,92 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Project-Id-Version: luci-app-singbox-lite\n"
+
+msgid "sing-box Lite"
+msgstr ""
+
+msgid "Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates."
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Running"
+msgstr ""
+
+msgid "Stopped"
+msgstr ""
+
+msgid "Start"
+msgstr ""
+
+msgid "Stop"
+msgstr ""
+
+msgid "Restart"
+msgstr ""
+
+msgid "Core"
+msgstr ""
+
+msgid "Nodes"
+msgstr ""
+
+msgid "Subscriptions"
+msgstr ""
+
+msgid "Rule Sets & Routing"
+msgstr ""
+
+msgid "Egress Groups"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Logs"
+msgstr ""
+
+msgid "Direct"
+msgstr ""
+
+msgid "Default group"
+msgstr ""
+
+msgid "Auto group"
+msgstr ""
+
+msgid "US group"
+msgstr ""
+
+msgid "Japan group"
+msgstr ""
+
+msgid "Hong Kong group"
+msgstr ""
+
+msgid "Other countries"
+msgstr ""
+
+msgid "Native group"
+msgstr ""
+
+msgid "Enabled"
+msgstr ""
+
+msgid "Name"
+msgstr ""
+
+msgid "Subscription URL"
+msgstr ""
+
+msgid "Format"
+msgstr ""
+
+msgid "Update"
+msgstr ""
+
+msgid "Update All"
+msgstr ""

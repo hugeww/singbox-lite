@@ -1,0 +1,86 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=10
+USE_PROCD=1
+
+SINGBOX_LITE_ETC="/etc/singbox-lite"
+SINGBOX_LITE_CONF="$SINGBOX_LITE_ETC/config.json"
+SINGBOX_LITE_LOG="/var/log/singbox-lite/core.log"
+SINGBOX_LITE_PID="/var/run/singbox-lite.pid"
+SINGBOX_LITE_ACTIVE_HASH="/var/run/singbox-lite.active.hash"
+SINGBOX_LITE_MANAGED_CORE="/usr/libexec/singbox-lite/sing-box"
+
+log() {
+	mkdir -p "$(dirname "$SINGBOX_LITE_LOG")" 2>/dev/null
+	printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >>"$SINGBOX_LITE_LOG" 2>/dev/null
+}
+
+core_path() {
+	local configured source
+	config_load singbox-lite
+	config_get source 'main' 'core_source' 'managed'
+	config_get configured 'main' 'core_binary'
+	if [ -n "$configured" ] && [ -x "$configured" ]; then
+		printf '%s' "$configured"
+		return 0
+	fi
+	if [ "$source" = "system" ] && [ -x "/usr/bin/sing-box" ]; then
+		printf '%s' "/usr/bin/sing-box"
+		return 0
+	fi
+	if [ -x "$SINGBOX_LITE_MANAGED_CORE" ]; then
+		printf '%s' "$SINGBOX_LITE_MANAGED_CORE"
+		return 0
+	fi
+	printf '%s' "/usr/bin/sing-box"
+}
+
+boot() {
+	local enabled
+	config_load singbox-lite
+	config_get_bool enabled 'main' 'enabled' 0
+	[ "$enabled" -eq 1 ] || return 0
+	start_service
+}
+
+start_service() {
+	local start_delay core
+	config_load singbox-lite
+	config_get start_delay 'main' 'start_delay' 0
+
+	mkdir -p "$SINGBOX_LITE_ETC" /var/log/singbox-lite /var/run
+	if [ "$start_delay" -gt 0 ] 2>/dev/null; then
+		sleep "$start_delay"
+	fi
+
+	core="$(core_path)"
+	if [ ! -x "$core" ]; then
+		log "core is not executable: $core"
+		return 1
+	fi
+	if [ ! -f "$SINGBOX_LITE_CONF" ]; then
+		log "config is missing: $SINGBOX_LITE_CONF"
+		return 1
+	fi
+
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$SINGBOX_LITE_CONF" | awk '{print $1}' >"$SINGBOX_LITE_ACTIVE_HASH" 2>/dev/null
+	fi
+
+	procd_open_instance singbox-lite
+	procd_set_param command /bin/sh -c "exec '$core' -D '$SINGBOX_LITE_ETC' run -c '$SINGBOX_LITE_CONF' >> '$SINGBOX_LITE_LOG' 2>&1"
+	procd_set_param file "$SINGBOX_LITE_CONF"
+	procd_set_param pidfile "$SINGBOX_LITE_PID"
+	procd_set_param respawn 3600 5 5
+	procd_set_param reload_signal HUP
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger "singbox-lite"
+}
+
+stop_service() {
+	rm -f "$SINGBOX_LITE_PID" "$SINGBOX_LITE_ACTIVE_HASH" 2>/dev/null
+}

@@ -1,0 +1,25 @@
+proxies:
+  - name: "US Clash"
+    type: vless
+    server: us.example.com
+    port: 443
+    uuid: 11111111-1111-1111-1111-111111111111
+    tls: true
+    servername: us.example.com
+    network: ws
+    ws-opts:
+      path: /ws
+      headers:
+        Host: us.example.com
+  - name: "JP Clash"
+    type: trojan
+    server: jp.example.com
+    port: 443
+    password: password
+    sni: jp.example.com
+  - name: "HK SS"
+    type: ss
+    server: hk.example.com
+    port: 8388
+    cipher: aes-256-gcm
+    password: password

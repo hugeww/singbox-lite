@@ -1,0 +1,48 @@
+{
+	"admin/services/singbox-lite": {
+		"title": "sing-box Lite",
+		"order": 60,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-singbox-lite" ],
+			"uci": { "singbox-lite": true }
+		}
+	},
+	"admin/services/singbox-lite/overview": {
+		"title": "Overview",
+		"order": 10,
+		"action": { "type": "view", "path": "singbox-lite/overview" }
+	},
+	"admin/services/singbox-lite/subscriptions": {
+		"title": "Subscriptions",
+		"order": 20,
+		"action": { "type": "view", "path": "singbox-lite/subscriptions" }
+	},
+	"admin/services/singbox-lite/nodes": {
+		"title": "Nodes",
+		"order": 30,
+		"action": { "type": "view", "path": "singbox-lite/nodes" }
+	},
+	"admin/services/singbox-lite/rulesets": {
+		"title": "Rule Sets & Routing",
+		"order": 40,
+		"action": { "type": "view", "path": "singbox-lite/rulesets" }
+	},
+	"admin/services/singbox-lite/egress": {
+		"title": "Egress Groups",
+		"order": 50,
+		"action": { "type": "view", "path": "singbox-lite/egress" }
+	},
+	"admin/services/singbox-lite/settings": {
+		"title": "Settings",
+		"order": 60,
+		"action": { "type": "view", "path": "singbox-lite/settings" }
+	},
+	"admin/services/singbox-lite/logs": {
+		"title": "Logs",
+		"order": 70,
+		"action": { "type": "view", "path": "singbox-lite/logs" }
+	}
+}

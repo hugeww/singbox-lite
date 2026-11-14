@@ -1,0 +1,42 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            branch: openwrt-25.12
+          - arch: aarch64_cortex-a53
+            branch: openwrt-25.12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build packages
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
+          FEEDNAME: singbox-lite
+          PACKAGES: singbox-lite luci-app-singbox-lite
+          NO_REFRESH_CHECK: true
+
+      - name: Package artifacts
+        run: |
+          mkdir -p release/${{ matrix.arch }}-${{ matrix.branch }}
+          cp -a bin/packages/${{ matrix.arch }}/singbox-lite/* release/${{ matrix.arch }}-${{ matrix.branch }}/
+          tar -czf release/singbox-lite-${{ matrix.arch }}-${{ matrix.branch }}.tar.gz -C release/${{ matrix.arch }}-${{ matrix.branch }} .
+
+      - name: Upload release asset
+        if: startsWith(github.ref_name, 'v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.tar.gz

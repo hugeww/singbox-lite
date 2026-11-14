@@ -1,0 +1,173 @@
+#!/usr/bin/ucode
+
+'use strict';
+
+import { popen, readfile, writefile } from 'fs';
+
+const CLI = '/usr/bin/singbox-lite';
+const CORE_STATUS_FILE = '/tmp/singbox-lite/core-update.json';
+const REFRESH_STATUS_FILE = '/tmp/singbox-lite/refresh.json';
+
+function trim(s) { return s == null ? '' : ltrim(rtrim(s)); }
+
+function sh_quote(s) {
+	return "'" + replace(s == null ? '' : s, "'", "'\\''") + "'";
+}
+
+function run_cli(argv) {
+	let cmd = CLI;
+	for (let a in argv) cmd += ' ' + sh_quote(a);
+	let p = popen(cmd);
+	if (!p) return { ok: false, error: '无法执行 singbox-lite' };
+	let out = p.read('all');
+	p.close();
+	try {
+		let data = json(out);
+		return data == null ? { ok: false, error: trim(out) } : data;
+	} catch (e) {
+		return { ok: false, error: '返回解析失败：' + trim(out) };
+	}
+}
+
+function run_cli_bg(argv, logfile) {
+	let cmd = CLI;
+	for (let a in argv) cmd += ' ' + sh_quote(a);
+	cmd += ' >' + sh_quote(logfile || '/tmp/singbox-lite-rpc.log') + ' 2>&1 &';
+	return system(['/bin/sh', '-c', cmd]) == 0;
+}
+
+function read_json_file(path, def) {
+	try {
+		let raw = readfile(path);
+		if (raw == null || !length(trim(raw))) return def;
+		let v = json(raw);
+		return v == null ? def : v;
+	} catch (e) {
+		return def;
+	}
+}
+
+const methods = {
+	status: {
+		call: function() { return run_cli([ 'status', '--json' ]); }
+	},
+	config_preview: {
+		call: function() { return run_cli([ 'preview', '--json' ]); }
+	},
+	config_check: {
+		call: function() { return run_cli([ 'check', '--json' ]); }
+	},
+	config_save: {
+		call: function() { return run_cli([ 'build', '--json' ]); }
+	},
+	service_control: {
+		args: { action: 'action' },
+		call: function(req) {
+			let action = req.args?.action;
+			if (action != 'start' && action != 'stop' && action != 'restart')
+				return { ok: false, error: 'invalid action' };
+			let rc = system([ '/etc/init.d/singbox-lite', action ]);
+			return { ok: rc == 0 };
+		}
+	},
+	subscription_update: {
+		args: { section: 'section' },
+		call: function(req) {
+			let section = req.args?.section;
+			if (!section || !match(section, /^[a-zA-Z0-9_]+$/))
+				return { ok: false, error: 'invalid section' };
+			return run_cli([ 'refresh', '--id', section, '--json' ]);
+		}
+	},
+	subscription_update_all: {
+		call: function() {
+			let ok = run_cli_bg([ 'refresh', '--all', '--json' ], '/tmp/singbox-lite-sub-update.log');
+			return { ok: ok, started: true };
+		}
+	},
+	subscription_status: {
+		call: function() {
+			let s = run_cli([ 'status', '--json' ]);
+			return { ok: s.ok, subscriptions: s.subscriptions || [], last_refresh: read_json_file(REFRESH_STATUS_FILE, null) };
+		}
+	},
+	node_parse: {
+		args: { links: 'links' },
+		call: function(req) {
+			let text = req.args?.links || '';
+			let result = [];
+			for (let line in split(text, '\n')) {
+				line = trim(line);
+				if (!length(line)) continue;
+				push(result, run_cli([ 'parse-link', line ]));
+			}
+			return { ok: true, nodes: result };
+		}
+	},
+	egress_status: {
+		call: function() {
+			let s = run_cli([ 'status', '--json' ]);
+			return { ok: s.ok, groups: s.groups || {}, nodes: s.nodes || 0 };
+		}
+	},
+	core_status: {
+		call: function() {
+			let s = run_cli([ 'status', '--json' ]);
+			return { ok: s.ok, core: s.core || {}, running: s.running };
+		}
+	},
+	core_check_latest: {
+		call: function() { return run_cli([ 'core-check', '--json' ]); }
+	},
+	core_update: {
+		args: { version: 'version', asset: 'asset', mirror: 'mirror' },
+		call: function(req) {
+			let argv = [ 'update-core', '--json' ];
+			if (req.args?.version) { push(argv, '--version'); push(argv, req.args.version); }
+			if (req.args?.asset) { push(argv, '--asset'); push(argv, req.args.asset); }
+			if (req.args?.mirror) { push(argv, '--mirror'); push(argv, req.args.mirror); }
+			let ok = run_cli_bg(argv, '/tmp/singbox-lite-core-update.log');
+			return { ok: ok, started: true };
+		}
+	},
+	core_update_status: {
+		call: function() { return read_json_file(CORE_STATUS_FILE, { state: 'idle' }); }
+	},
+	core_rollback: {
+		call: function() { return run_cli([ 'core-rollback', '--json' ]); }
+	},
+	ruleset_update: {
+		args: { id: 'id' },
+		call: function(req) {
+			let argv = [ 'update-rulesets', '--json' ];
+			if (req.args?.id) { push(argv, '--id'); push(argv, req.args.id); }
+			return run_cli(argv);
+		}
+	},
+	log_tail: {
+		args: { lines: 'lines' },
+		call: function(req) {
+			return run_cli([ 'log', '--lines', sprintf('%d', int(req.args?.lines || 100)), '--json' ]);
+		}
+	},
+	log_clear: {
+		call: function() {
+			system([ '/bin/sh', '-c', ': > /var/log/singbox-lite/core.log; : > /var/log/singbox-lite/app.log' ]);
+			return { ok: true };
+		}
+	},
+	yq_status: {
+		call: function() {
+			let rc = system([ 'sh', '-c', 'command -v yq >/dev/null 2>&1' ]);
+			return { ok: rc == 0, installed: rc == 0 };
+		}
+	},
+	install_yq: {
+		call: function() {
+			let rc = system([ 'apk', 'add', 'yq' ]);
+			return { ok: rc == 0, error: rc == 0 ? null : 'apk add yq 失败' };
+		}
+	}
+};
+
+return { 'luci.singbox_lite': methods };

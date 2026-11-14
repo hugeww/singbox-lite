@@ -1,0 +1,26 @@
+{
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "US Node",
+      "server": "us.example.com",
+      "server_port": 443,
+      "uuid": "11111111-1111-1111-1111-111111111111",
+      "tls": {
+        "enabled": true,
+        "server_name": "us.example.com"
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "selector",
+      "tag": "proxy",
+      "outbounds": [
+        "US Node"
+      ]
+    }
+  ]
+}

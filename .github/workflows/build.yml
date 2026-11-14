@@ -1,0 +1,88 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: ${{ matrix.arch }}-${{ matrix.branch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            branch: openwrt-25.12
+          - arch: aarch64_cortex-a53
+            branch: openwrt-25.12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build packages
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
+          FEEDNAME: singbox-lite
+          PACKAGES: singbox-lite luci-app-singbox-lite
+          NO_REFRESH_CHECK: true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: singbox-lite-${{ matrix.arch }}-${{ matrix.branch }}
+          path: bin/packages/${{ matrix.arch }}/singbox-lite
+          if-no-files-found: error
+
+  test:
+    name: host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libjson-c-dev gcc make git nodejs
+
+      - name: Build host ucode
+        run: |
+          git clone --depth 1 https://github.com/jow-/ucode /tmp/ucode
+          cmake -S /tmp/ucode -B /tmp/ucode/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUCI_SUPPORT=OFF -DUBUS_SUPPORT=OFF -DULOOP_SUPPORT=OFF \
+            -DRTNL_SUPPORT=OFF -DNL80211_SUPPORT=OFF -DZLIB_SUPPORT=OFF
+          cmake --build /tmp/ucode/build -j"$(nproc)"
+          cmake --install /tmp/ucode/build --prefix /tmp/ucode-install
+          ls /tmp/ucode-install/bin/ucode /tmp/ucode-install/lib
+
+      - name: Backend tests
+        run: |
+          export LD_LIBRARY_PATH="/tmp/ucode-install/lib:${LD_LIBRARY_PATH:-}"
+          export UCODE_BIN=/tmp/ucode-install/bin/ucode
+          export SINGBOX_LITE_LIB="$PWD/singbox-lite/files/usr/share/singbox-lite"
+          export SINGBOX_LITE_ETC=/tmp/singbox-lite-test
+          export SINGBOX_LITE_TESTDIR="$PWD"
+          mkdir -p /tmp/sbxmods
+          for m in common config links nodes rulesets subs generator core; do
+            ln -sf "$SINGBOX_LITE_LIB/ucode/$m.uc" "/tmp/sbxmods/sbx_$m.uc"
+          done
+          "$UCODE_BIN" -L /tmp/sbxmods tests/run.uc
+
+      - name: JS syntax
+        run: |
+          find luci-app-singbox-lite/htdocs -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: ucode compile checks
+        run: |
+          for f in singbox-lite/files/usr/share/singbox-lite/ucode/*.uc; do
+            /tmp/ucode-install/bin/ucode -cmodule -L /tmp/sbxmods -o /tmp/out.uc "$f"
+          done
+          /tmp/ucode-install/bin/ucode -cmodule \
+            -L "$PWD/singbox-lite/files/usr/share/singbox-lite/ucode" \
+            -o /tmp/out.uc singbox-lite/files/usr/share/singbox-lite/cli.uc
+          /tmp/ucode-install/bin/ucode -c \
+            -o /tmp/out.uc luci-app-singbox-lite/root/usr/share/rpcd/ucode/luci.singbox_lite

@@ -1,0 +1,93 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Project-Id-Version: luci-app-singbox-lite\n"
+"Language: zh_Hans\n"
+
+msgid "sing-box Lite"
+msgstr "sing-box Lite"
+
+msgid "Bare-core sing-box manager: subscriptions, rule sets, egress groups and core updates."
+msgstr "sing-box 裸核管理器：订阅、规则集、出口组与核心更新"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "Stopped"
+msgstr "已停止"
+
+msgid "Start"
+msgstr "启动"
+
+msgid "Stop"
+msgstr "停止"
+
+msgid "Restart"
+msgstr "重启"
+
+msgid "Core"
+msgstr "核心"
+
+msgid "Nodes"
+msgstr "节点"
+
+msgid "Subscriptions"
+msgstr "订阅"
+
+msgid "Rule Sets & Routing"
+msgstr "规则集与分流"
+
+msgid "Egress Groups"
+msgstr "出口组"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Logs"
+msgstr "日志"
+
+msgid "Direct"
+msgstr "直连"
+
+msgid "Default group"
+msgstr "默认组"
+
+msgid "Auto group"
+msgstr "自动组"
+
+msgid "US group"
+msgstr "美国组"
+
+msgid "Japan group"
+msgstr "日本组"
+
+msgid "Hong Kong group"
+msgstr "香港组"
+
+msgid "Other countries"
+msgstr "其他国"
+
+msgid "Native group"
+msgstr "原生组"
+
+msgid "Enabled"
+msgstr "启用"
+
+msgid "Name"
+msgstr "名称"
+
+msgid "Subscription URL"
+msgstr "订阅地址"
+
+msgid "Format"
+msgstr "格式"
+
+msgid "Update"
+msgstr "更新"
+
+msgid "Update All"
+msgstr "全部更新"

@@ -1,0 +1,6 @@
+vless://11111111-1111-1111-1111-111111111111@us.example.com:443?encryption=none&security=tls&sni=us.example.com&type=ws&path=%2Fws&host=us.example.com#US%20VLESS
+trojan://password@jp.example.com:443?sni=jp.example.com#JP%20Trojan
+ss://YWVzLTI1Ni1nY206cGFzc3dvcmQ@hk.example.com:8388#HK%20SS
+hysteria2://pass@native.example.com:443?sni=native.example.com&insecure=1#Native%20HY2
+vmess://eyJ2IjoiMiIsInBzIjoiVk0gV1MiLCJhZGQiOiJ2bS5leGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6IjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsImFpZCI6IjAiLCJzY3kiOiJhdXRvIiwibmV0Ijoid3MiLCJob3N0Ijoidm0uZXhhbXBsZS5jb20iLCJwYXRoIjoiL3dzIiwidGxzIjoidGxzIn0=
+vless://11111111-1111-1111-1111-111111111111@reality.example.com:443?encryption=none&security=reality&sni=reality.example.com&fp=chrome&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=0123&type=grpc&serviceName=grpc#Reality
