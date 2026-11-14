@@ -23,7 +23,9 @@ function setOverride(id, field, value) {
 		if (!sid) return Promise.resolve();
 		uci.set('singbox-lite', sid, 'id', id);
 	}
-	uci.set('singbox-lite', sid, field, value);
+	// The backend reads the explicit native IP mode from the `native_mode`
+	// option; `native` is only consulted as a fallback for older configs.
+	uci.set('singbox-lite', sid, field == 'native' ? 'native_mode' : field, value);
 	return uci.save().then(function() { return uci.apply(); });
 }
 
