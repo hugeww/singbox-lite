@@ -1,41 +1,57 @@
 name: build
 
+# Builds only run when asked for:
+#   * manually (Actions -> build -> Run workflow), and
+#   * when a version tag (v*) is pushed, which also publishes a GitHub release.
+# A normal push to main never builds.
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, e.g. 0.1.1 (empty: next patch after the latest tag)"
+        required: false
+        default: ""
   push:
     tags:
       - "v*"
 
-jobs:
-  build:
-    name: ${{ matrix.arch }}-${{ matrix.branch }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x86_64
-            branch: openwrt-25.12
-          - arch: aarch64_cortex-a53
-            branch: openwrt-25.12
+permissions:
+  contents: write
 
+jobs:
+  version:
+    name: resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Build packages
-        uses: openwrt/gh-action-sdk@main
-        env:
-          ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
-          FEEDNAME: singbox_lite
-          PACKAGES: singbox-lite luci-app-singbox-lite
-          NO_REFRESH_CHECK: true
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
         with:
-          name: singbox-lite-${{ matrix.arch }}-${{ matrix.branch }}
-          path: bin/packages/${{ matrix.arch }}/singbox_lite
-          if-no-files-found: error
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          set -eu
+          pkg=$(sed -n 's/^PKG_VERSION:=//p' singbox-lite/Makefile | head -n 1)
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag=${GITHUB_REF_NAME#v}
+            if [ "$tag" != "$pkg" ]; then
+              echo "tag v$tag does not match PKG_VERSION $pkg" >&2
+              echo "run scripts/bump-version.sh $tag, commit the result, then tag again" >&2
+              exit 1
+            fi
+            version=$tag
+          else
+            version="${{ inputs.version }}"
+            if [ -z "$version" ]; then
+              latest=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)
+              base=$(printf '%s\n%s\n' "$pkg" "$latest" | sed '/^$/d' | sort -V | tail -n 1)
+              version=$(printf '%s' "$base" | awk -F. '{printf "%d.%d.%d", $1, $2, $3 + 1}')
+            fi
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build version: $version"
 
   test:
     name: host tests
@@ -87,3 +103,63 @@ jobs:
             -o /tmp/out.uc singbox-lite/files/usr/share/singbox-lite/cli.uc
           /tmp/ucode-install/bin/ucode -c \
             -o /tmp/out.uc luci-app-singbox-lite/root/usr/share/rpcd/ucode/luci.singbox_lite
+
+  build:
+    name: ${{ matrix.arch }}-${{ matrix.branch }}
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            branch: openwrt-25.12
+          - arch: aarch64_cortex-a53
+            branch: openwrt-25.12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set package version
+        run: |
+          sh scripts/bump-version.sh "${{ needs.version.outputs.version }}"
+
+      - name: Build packages
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
+          FEEDNAME: singbox_lite
+          PACKAGES: singbox-lite luci-app-singbox-lite
+          NO_REFRESH_CHECK: true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: singbox-lite-${{ matrix.arch }}-${{ matrix.branch }}
+          path: bin/packages/${{ matrix.arch }}/singbox_lite/*.apk
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Package tarballs
+        run: |
+          mkdir -p release
+          for d in dist/*/; do
+            name=$(basename "$d")
+            tar -czf "release/${name}.tar.gz" -C "$d" .
+          done
+          ls -l release
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.tar.gz
+          generate_release_notes: true

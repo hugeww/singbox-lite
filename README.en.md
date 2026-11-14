@@ -30,6 +30,21 @@ apk add --allow-untrusted ./singbox-lite-*.apk ./luci-app-singbox-lite-*.apk
 
 Open **Services → sing-box Lite**, install/update the core, add subscriptions/nodes, save & check, then start.
 
+## Build and release
+
+Plain pushes never build. A build runs only when it is requested: manually (Actions → `build` → `Run workflow`, artifacts only) or by pushing a `v*` version tag, which also publishes the GitHub Release that the plugin self-update reads (`singbox-lite-<arch>-openwrt-25.12.tar.gz`).
+
+Every build carries a new version. `scripts/bump-version.sh` keeps `PKG_VERSION`/`PKG_RELEASE` in both package Makefiles and the backend `VERSION` in sync:
+
+```sh
+scripts/bump-version.sh patch   # 0.1.0 -> 0.1.1
+git commit -am "release: 0.1.1"
+git tag v0.1.1
+git push origin main v0.1.1
+```
+
+The workflow fails when the tag does not match `PKG_VERSION`, and a manual build without an explicit version uses the next patch after the latest tag.
+
 ## Documentation
 
 See [README.md](README.md) for the full Chinese documentation, data paths, rule/egress model and build instructions.

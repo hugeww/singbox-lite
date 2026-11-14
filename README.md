@@ -90,17 +90,39 @@ Clash API 由 `config panel 'panel'` 控制：`enabled`、`listen`、`port`、`s
 
 连 metacubexd / yacd 等其他面板时，把 `listen` 设为 `0.0.0.0`、在「设置 → 面板」保存后重启服务，并自行在防火墙放行该端口——这属于本插件「不改防火墙」之外的操作用户自理。
 
-## 构建
+## 构建与发布
 
-需要 OpenWrt SDK 25.12（x86_64 或对应架构）。把两个包目录放入 SDK 的 `package/` 下，安装 feeds 后：
+**普通提交推送不会触发构建**，构建只在需要时运行：
+
+- 手动：Actions → `build` → `Run workflow`，只产出 Actions artifact，不发布；
+- 推送版本标签 `v*`：构建并发布 GitHub Release，插件「设置 → 插件 → 更新」读取的就是其中的 `singbox-lite-<arch>-openwrt-25.12.tar.gz`。
+
+每次构建都带一个新版本号。版本由 `scripts/bump-version.sh` 统一维护，两个包的 `PKG_VERSION`、`PKG_RELEASE` 和后端 `common.uc` 的 `VERSION` 会一起更新：
+
+```sh
+scripts/bump-version.sh          # 0.1.0 → 0.1.1（默认 patch）
+scripts/bump-version.sh minor    # 0.1.0 → 0.2.0
+scripts/bump-version.sh 0.2.3    # 指定版本
+```
+
+发版流程：
+
+```sh
+scripts/bump-version.sh patch
+git commit -am "release: 0.1.1"
+git tag v0.1.1
+git push origin main v0.1.1
+```
+
+标签与 `singbox-lite/Makefile` 的 `PKG_VERSION` 不一致时 workflow 会直接失败，避免打错版本；手动构建不填版本号时，会在最新标签（没有标签则用 Makefile 当前版本）的基础上自动 +1 patch。
+
+本地用 OpenWrt SDK 25.12（x86_64 或对应架构）构建时，把两个包目录放入 SDK 的 `package/` 下，安装 feeds 后：
 
 ```sh
 make defconfig
 make package/singbox-lite/compile V=s
 make package/luci-app-singbox-lite/compile V=s
 ```
-
-或使用仓库的 GitHub Actions（`.github/workflows/build.yml`），输出 `.apk`。
 
 ## 测试
 
