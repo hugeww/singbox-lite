@@ -25,14 +25,14 @@ jobs:
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
-          FEEDNAME: singbox-lite
+          FEEDNAME: singbox_lite
           PACKAGES: singbox-lite luci-app-singbox-lite
           NO_REFRESH_CHECK: true
 
       - name: Package artifacts
         run: |
           mkdir -p release/${{ matrix.arch }}-${{ matrix.branch }}
-          cp -a bin/packages/${{ matrix.arch }}/singbox-lite/* release/${{ matrix.arch }}-${{ matrix.branch }}/
+          cp -a bin/packages/${{ matrix.arch }}/singbox_lite/* release/${{ matrix.arch }}-${{ matrix.branch }}/
           tar -czf release/singbox-lite-${{ matrix.arch }}-${{ matrix.branch }}.tar.gz -C release/${{ matrix.arch }}-${{ matrix.branch }} .
 
       - name: Upload release asset

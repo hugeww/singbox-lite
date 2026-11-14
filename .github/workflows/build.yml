@@ -26,7 +26,7 @@ jobs:
         uses: openwrt/gh-action-sdk@main
         env:
           ARCH: ${{ matrix.arch }}-${{ matrix.branch }}
-          FEEDNAME: singbox-lite
+          FEEDNAME: singbox_lite
           PACKAGES: singbox-lite luci-app-singbox-lite
           NO_REFRESH_CHECK: true
 
@@ -34,7 +34,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: singbox-lite-${{ matrix.arch }}-${{ matrix.branch }}
-          path: bin/packages/${{ matrix.arch }}/singbox-lite
+          path: bin/packages/${{ matrix.arch }}/singbox_lite
           if-no-files-found: error
 
   test:
@@ -53,11 +53,11 @@ jobs:
           git clone --depth 1 https://github.com/jow-/ucode /tmp/ucode
           cmake -S /tmp/ucode -B /tmp/ucode/build \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/tmp/ucode-install \
             -DUCI_SUPPORT=OFF -DUBUS_SUPPORT=OFF -DULOOP_SUPPORT=OFF \
             -DRTNL_SUPPORT=OFF -DNL80211_SUPPORT=OFF -DZLIB_SUPPORT=OFF
           cmake --build /tmp/ucode/build -j"$(nproc)"
-          cmake --install /tmp/ucode/build --prefix /tmp/ucode-install
-          ls /tmp/ucode-install/bin/ucode /tmp/ucode-install/lib
+          cmake --install /tmp/ucode/build
 
       - name: Backend tests
         run: |
@@ -82,7 +82,7 @@ jobs:
             /tmp/ucode-install/bin/ucode -cmodule -L /tmp/sbxmods -o /tmp/out.uc "$f"
           done
           /tmp/ucode-install/bin/ucode -cmodule \
-            -L "$PWD/singbox-lite/files/usr/share/singbox-lite/ucode" \
+            -L /tmp/sbxmods \
             -o /tmp/out.uc singbox-lite/files/usr/share/singbox-lite/cli.uc
           /tmp/ucode-install/bin/ucode -c \
             -o /tmp/out.uc luci-app-singbox-lite/root/usr/share/rpcd/ucode/luci.singbox_lite
