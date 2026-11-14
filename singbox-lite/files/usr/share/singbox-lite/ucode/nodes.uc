@@ -11,6 +11,12 @@ const DEFAULT_COUNTRY = {
 
 const DEFAULT_NATIVE = '原生,原生IP,native,家宽,住宅,residential';
 
+/*
+ * 机场常把「剩余流量」「到期时间」「去官网更新」这类信息条目伪装成节点塞进订阅，
+ * 它们连不上，只会在面板/分组里占位。命中这些关键词的条目直接跳过。
+ */
+const DEFAULT_INFO_KEYWORDS = '剩余流量,流量剩余,到期时间,过期时间,下次重置,重置时间,套餐,官网,客服,公告';
+
 function has_keyword(name, keyword) {
 	name = lc(name == null ? '' : name);
 	keyword = lc(keyword == null ? '' : keyword);
@@ -85,6 +91,14 @@ function node_tag(name, id) {
 	return (length(label) ? label : 'node') + ' [' + id + ']';
 }
 
+function is_info_node(name, cfg) {
+	let keywords = split_csv((cfg && cfg.main && cfg.main.info_keywords) || DEFAULT_INFO_KEYWORDS);
+	for (let kw in keywords)
+		if (has_keyword(name, kw))
+			return true;
+	return false;
+}
+
 function collect_nodes(cfg) {
 	let nodes = [];
 	let warnings = [];
@@ -102,6 +116,10 @@ function collect_nodes(cfg) {
 		let ov = overrides[id] || {};
 		if (ov.enabled == '0') return;
 		let name = trim(raw.name || outbound.server || 'node');
+		if (is_info_node(name, cfg)) {
+			push(warnings, sprintf('已跳过信息节点：%s', name));
+			return;
+		}
 		let country = ov.country && ov.country != 'auto' ? ov.country : classify_country(name, cfg.egress);
 		let native = ov.native == '1' ? true : (ov.native == '0' ? false : is_native(name, cfg.egress));
 		let native_mode = ov.native || 'auto';
