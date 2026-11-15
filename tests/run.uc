@@ -173,17 +173,6 @@ if (gen.ok) {
 	let dnsDirect = null;
 	for (let o in gen.config.outbounds) if (o.tag == 'direct-dns') dnsDirect = o;
 	check(dnsDirect != null && dnsDirect.tcp_fast_open === true, 'direct DNS detour target is not an empty direct outbound');
-
-	cfg.inbound.proxy = '1';
-	cfg.inbound.proxy_listen = '0.0.0.0';
-	cfg.inbound.proxy_port = '7890';
-	let genProxy = build_config(cfg, { nodes: nodes, warnings: [] });
-	cfg.inbound.proxy = '0';
-	check(genProxy.ok && length(genProxy.config.inbounds) == 2, 'optional proxy inbound added');
-	if (genProxy.ok) {
-		let mixedOut = genProxy.config.inbounds[1];
-		check(mixedOut.type == 'mixed' && mixedOut.listen_port == 7890, 'proxy inbound listens on 7890');
-	}
 	cfg.inbound.exclude_cn = '0';
 	let genNoExclude = build_config(cfg, { nodes: nodes, warnings: [] });
 	check(genNoExclude.ok && !genNoExclude.config.inbounds[0].route_exclude_address_set, 'exclude_cn=0 disables the CN pre-match exclusion');

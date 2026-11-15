@@ -307,16 +307,6 @@ return view.extend({
 		o.default = '0';
 		o = s.option(form.Flag, 'exclude_cn', _('Exclude CN IPs from TUN routes'));
 		o.default = '1';
-		o = s.option(form.Flag, 'proxy', _('Also listen as HTTP/SOCKS proxy'));
-		o.default = '0';
-		o.description = _('Keeps a mixed inbound next to TUN so other devices can use this box as a proxy.');
-		o = s.option(form.Value, 'proxy_listen', _('Proxy listen address'));
-		o.placeholder = '0.0.0.0';
-		o.depends('proxy', '1');
-		o = s.option(form.Value, 'proxy_port', _('Proxy port'));
-		o.datatype = 'port';
-		o.placeholder = '7890';
-		o.depends('proxy', '1');
 
 		s = m.section(form.NamedSection, 'dns', 'dns', _('DNS'));
 		s.anonymous = false;

@@ -316,31 +316,10 @@ function build_config(cfg, collected) {
 		}
 	}
 
-	let inbounds = [ inbound ];
-	if (cfg.inbound && cfg.inbound.proxy == '1') {
-		let plisten = trim(cfg.inbound.proxy_listen || '0.0.0.0');
-		if (!length(plisten)) plisten = '0.0.0.0';
-		let pport = int(cfg.inbound.proxy_port || 7890);
-		if (pport < 1 || pport > 65535) {
-			push(warnings, sprintf('代理端口 %d 无效，已回退到 7890', pport));
-			pport = 7890;
-		}
-		let mixed = { type: 'mixed', tag: 'mixed-in', listen: plisten, listen_port: pport };
-		if (cfg.inbound.auth == '1') {
-			if (!length(cfg.inbound.username || '') || !length(cfg.inbound.password || '')) {
-				push(warnings, '已启用入站认证但用户名/密码为空，使用默认 admin/admin');
-				mixed.users = [ { username: 'admin', password: 'admin' } ];
-			} else {
-				mixed.users = [ { username: cfg.inbound.username, password: cfg.inbound.password } ];
-			}
-		}
-		push(inbounds, mixed);
-	}
-
 	let config = {
 		log: { level: (cfg.main && cfg.main.log_level) || 'info', timestamp: true },
 		dns: dns,
-		inbounds: inbounds,
+		inbounds: [ inbound ],
 		outbounds: outbounds,
 		route: {
 			rules: route_rules,
