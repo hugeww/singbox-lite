@@ -17,9 +17,30 @@ function notify(title, msg, type) {
 	ui.addNotification(title, msg, type || 'info');
 }
 
+function urlHost() {
+	let host = window.location.hostname || '127.0.0.1';
+	if (host.indexOf(':') >= 0 && host.charAt(0) != '[')
+		host = '[' + host + ']';
+	return host;
+}
+
+function backendUrl(port) {
+	return 'http://' + urlHost() + ':' + (port || 9090);
+}
+
 function dashboardUrl(port) {
-	let host = window.location.hostname || '';
-	return 'http://' + host + ':' + (port || 9090) + '/ui/';
+	return backendUrl(port) + '/dashboard/';
+}
+
+function copyButton(text) {
+	let btn = E('button', { class: 'btn cbi-button' }, _('Copy'));
+	btn.addEventListener('click', function() {
+		if (!navigator.clipboard || !navigator.clipboard.writeText) return;
+		navigator.clipboard.writeText(text).then(function() {
+			notify(_('Panel'), _('Copied'), 'info');
+		});
+	});
+	return btn;
 }
 
 function renderOfficial(status, title, descr) {
@@ -74,7 +95,7 @@ function renderOfficial(status, title, descr) {
 			descr,
 			E('fieldset', { class: 'cbi-section' }, [
 				E('p', {}, status.enabled === true
-					? _('Clash API is not reachable. Save the configuration and restart the service.')
+					? _('sing-box API is not reachable. Save the configuration and restart the service.')
 					: _('Panel is disabled. Enable it in Settings and restart the service.')),
 				E('p', {}, (status.port ? _('Port') + ': ' + status.port + '  ' : '') +
 					(status.error ? _('Error') + ': ' + status.error : '')),
@@ -88,14 +109,8 @@ function renderOfficial(status, title, descr) {
 
 	let secret = status.secret || '';
 	let listen = status.listen || '';
+	let backend = backendUrl(status.port);
 	let loopback = (listen == '127.0.0.1' || listen == '::1' || listen == '[::1]');
-	let copyBtn = E('button', { class: 'btn cbi-button' }, _('Copy'));
-	copyBtn.addEventListener('click', function() {
-		if (!navigator.clipboard || !navigator.clipboard.writeText) return;
-		navigator.clipboard.writeText(secret).then(function() {
-			notify(_('Panel'), _('Copied'), 'info');
-		});
-	});
 
 	let info = E('fieldset', { class: 'cbi-section' }, [
 		E('div', { class: 'cbi-value' }, [
@@ -103,11 +118,15 @@ function renderOfficial(status, title, descr) {
 			E('div', { class: 'cbi-value-field' }, E('a', { href: url, target: '_blank', rel: 'noopener' }, url))
 		]),
 		E('div', { class: 'cbi-value' }, [
-			E('label', { class: 'cbi-value-title' }, _('API secret')),
-			E('div', { class: 'cbi-value-field' }, [ E('code', {}, secret || '-'), ' ', copyBtn ])
+			E('label', { class: 'cbi-value-title' }, _('Backend API URL')),
+			E('div', { class: 'cbi-value-field' }, E('code', {}, backend))
 		]),
-		E('p', {}, _('Open the panel once, enter this secret in its settings, and the browser will remember it.')),
-		loopback ? E('p', {}, E('strong', {}, _('The official dashboard is only reachable from other devices when the Clash API listens on 0.0.0.0 or a LAN address.'))) : ''
+		E('div', { class: 'cbi-value' }, [
+			E('label', { class: 'cbi-value-title' }, _('API secret')),
+			E('div', { class: 'cbi-value-field' }, [ E('code', {}, secret || '-'), ' ', copyButton(secret) ])
+		]),
+		E('p', {}, _('In the dashboard settings, enter the backend API URL and this secret once.')),
+		loopback ? E('p', {}, E('strong', {}, _('The official dashboard is only reachable from other devices when the sing-box API listens on 0.0.0.0 or a LAN address.'))) : ''
 	]);
 
 	return E('div', { class: 'cbi-map' }, [
@@ -123,10 +142,16 @@ function renderOfficial(status, title, descr) {
 
 return view.extend({
 	load: function() {
-		return Promise.all([
-			api.panelStatus().catch(function() { return null; }),
-			api.panelProxies().catch(function() { return null; })
-		]);
+		return api.panelStatus().catch(function() { return null; }).then(function(status) {
+			/* The official dashboard is served by the sing-box API; there is no
+			   Clash API to query in that mode. Skip the proxy probe entirely. */
+			if (status && status.dashboard === 'official')
+				return [ status, null ];
+			return Promise.all([
+				Promise.resolve(status),
+				api.panelProxies().catch(function() { return null; })
+			]);
+		});
 	},
 
 	render: function(data) {
@@ -136,7 +161,9 @@ return view.extend({
 
 		let title = E('h2', { name: 'content' }, _('Panel'));
 		let descr = E('div', { class: 'cbi-map-descr' },
-			_('Live status, proxy groups and connections from the sing-box Clash API.'));
+			status.dashboard === 'official'
+				? _('Official sing-box dashboard served by the sing-box API.')
+				: _('Live status, proxy groups and connections from the sing-box Clash API.'));
 
 		if (status.dashboard === 'official')
 			return renderOfficial(status, title, descr);
@@ -189,6 +216,20 @@ return view.extend({
 				E('label', { class: 'cbi-value-title' }, _('Active connections')),
 				E('div', { class: 'cbi-value-field' }, elCount)
 			])
+		]);
+
+		let backend = backendUrl(status.port);
+		let apiSection = E('fieldset', { class: 'cbi-section' }, [
+			E('legend', {}, _('API')),
+			E('div', { class: 'cbi-value' }, [
+				E('label', { class: 'cbi-value-title' }, _('Backend API URL')),
+				E('div', { class: 'cbi-value-field' }, E('code', {}, backend))
+			]),
+			E('div', { class: 'cbi-value' }, [
+				E('label', { class: 'cbi-value-title' }, _('API secret')),
+				E('div', { class: 'cbi-value-field' }, [ E('code', {}, status.secret || '-'), ' ', copyButton(status.secret || '') ])
+			]),
+			E('p', {}, _('Use this URL and secret for a third-party Clash dashboard.'))
 		]);
 
 		let proxyBox = E('div', {});
@@ -312,6 +353,6 @@ return view.extend({
 			}).catch(function() {});
 		}, 15);
 
-		return E('div', { class: 'cbi-map' }, [ title, descr, statusSection, proxySection, connSection ]);
+		return E('div', { class: 'cbi-map' }, [ title, descr, statusSection, apiSection, proxySection, connSection ]);
 	}
 });

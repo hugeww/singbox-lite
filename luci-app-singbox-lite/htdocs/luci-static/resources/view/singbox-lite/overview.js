@@ -13,6 +13,18 @@ function notify(title, msg, type) {
 	ui.addNotification(title, msg, type || 'info');
 }
 
+function downloadText(filename, text) {
+	let blob = new Blob([ text ], { type: 'application/json' });
+	let url = URL.createObjectURL(blob);
+	let a = E('a', { href: url, download: filename, style: 'display:none' });
+	document.body.appendChild(a);
+	a.click();
+	window.setTimeout(function() {
+		URL.revokeObjectURL(url);
+		if (a.parentNode) a.parentNode.removeChild(a);
+	}, 1000);
+}
+
 function sleep(ms) {
 	return new Promise(function(res) { window.setTimeout(res, ms); });
 }
@@ -181,11 +193,23 @@ return view.extend({
 		o = s.option(form.Button, '_preview', _('Preview Config'));
 		o.onclick = function() {
 			return api.configPreview().then(function(r) {
-				let text = r.ok ? JSON.stringify(r.config, null, 2) : ((r.errors || []).join('\n') || r.error || '');
-				ui.showModal(_('Config Preview'), [
-					E('pre', { style: 'max-height:60vh;overflow:auto;white-space:pre-wrap;font-size:12px;' }, text),
-					E('button', { class: 'btn cbi-button', click: function() { ui.hideModal(); } }, _('Close'))
-				]);
+				let text = r.ok ? JSON.stringify(r.config, null, 2) + '\n' : ((r.errors || []).join('\n') || r.error || '');
+				let body = [
+					E('pre', { style: 'max-height:60vh;overflow:auto;white-space:pre-wrap;font-size:12px;' }, text)
+				];
+				if (r.ok && (r.warnings || []).length) {
+					body.push(E('div', { class: 'cbi-section' },
+						[ E('strong', {}, _('Warnings')), E('ul', {}, (r.warnings || []).map(function(w) { return E('li', {}, w); })) ]));
+				}
+				let buttons = [];
+				if (r.ok) {
+					let dl = E('button', { class: 'btn cbi-button cbi-button-positive' }, _('Download'));
+					dl.addEventListener('click', function() { downloadText('singbox-lite-config.json', text); });
+					buttons.push(dl);
+				}
+				buttons.push(E('button', { class: 'btn cbi-button', click: function() { ui.hideModal(); } }, _('Close')));
+				body.push(E('div', { style: 'margin-top:1em;display:flex;gap:.5em;justify-content:flex-end;' }, buttons));
+				ui.showModal(_('Config Preview'), body);
 			});
 		};
 

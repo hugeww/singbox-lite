@@ -235,7 +235,7 @@ return view.extend({
 		o.default = '2048';
 
 		s = m.section(form.NamedSection, 'panel', 'panel', _('Panel'),
-			_('Clash API used by the live panel page. Restart the service after changing it.'));
+			_('Official dashboard uses the sing-box API service; the built-in panel uses the Clash API. Restart the service after changing this.'));
 		s.anonymous = false;
 
 		o = s.option(form.Flag, 'enabled', _('Enable panel'));

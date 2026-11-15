@@ -24,4 +24,9 @@ done
 "$UCODE_BIN" -L "$MODDIR" "$ROOT/singbox-lite/files/usr/share/singbox-lite/cli.uc" build >"$TMP/build.json"
 grep -q '"ok": true' "$TMP/build.json"
 "$CORE_BIN" check -c "$TMP/config.json"
+# sing-box check does not catch an empty direct outbound used as a DNS detour;
+# assert the generated non-empty direct-dns outbound and its use explicitly.
+grep -q '"tag": "direct-dns"' "$TMP/config.json"
+grep -q '"tcp_fast_open": true' "$TMP/config.json"
+grep -q '"detour": "direct-dns"' "$TMP/config.json"
 echo "CONFIG CHECK OK"

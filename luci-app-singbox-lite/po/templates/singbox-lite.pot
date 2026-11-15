@@ -111,9 +111,6 @@ msgstr ""
 msgid "Clash API is not reachable. Save the configuration and restart the service."
 msgstr ""
 
-msgid "Clash API used by the live panel page. Restart the service after changing it."
-msgstr ""
-
 msgid "Clash YAML (yq)"
 msgstr ""
 
@@ -618,9 +615,6 @@ msgstr ""
 msgid "Test latency"
 msgstr ""
 
-msgid "The official dashboard is only reachable from other devices when the Clash API listens on 0.0.0.0 or a LAN address."
-msgstr ""
-
 msgid "The selected release will be downloaded and installed with apk, replacing singbox-lite and luci-app-singbox-lite."
 msgstr ""
 
@@ -739,4 +733,28 @@ msgid "yq"
 msgstr ""
 
 msgid "legacy id"
+msgstr ""
+
+msgid "Official sing-box dashboard served by the sing-box API."
+msgstr ""
+
+msgid "sing-box API is not reachable. Save the configuration and restart the service."
+msgstr ""
+
+msgid "Official dashboard uses the sing-box API service; the built-in panel uses the Clash API. Restart the service after changing this."
+msgstr ""
+
+msgid "The official dashboard is only reachable from other devices when the sing-box API listens on 0.0.0.0 or a LAN address."
+msgstr ""
+
+msgid "API"
+msgstr ""
+
+msgid "Backend API URL"
+msgstr ""
+
+msgid "In the dashboard settings, enter the backend API URL and this secret once."
+msgstr ""
+
+msgid "Use this URL and secret for a third-party Clash dashboard."
 msgstr ""

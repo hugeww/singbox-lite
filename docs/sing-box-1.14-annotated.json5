@@ -81,7 +81,7 @@
         "type": "udp",
         "tag": "dns-direct",
         "server": "223.5.5.5",
-        "detour": "direct"        // 走哪个出站；direct = 直连
+        "detour": "direct-dns"   // 用非空 direct 出站；1.14.4 拒绝空 direct 作 DNS detour
       },
 
       // 代理侧 DoH：1.1.1.1:443，TLS SNI=cloudflare-dns.com。
@@ -446,6 +446,8 @@
 
     // 直连；可加 bind_interface / inet4_bind_address / routing_mark 等。
     { "type": "direct", "tag": "direct" },
+    // 空 direct 可以作为路由目标，但不能作为 DNS 的 detour；给 DNS 单独一个非空出站。
+    { "type": "direct", "tag": "direct-dns", "tcp_fast_open": true },
 
     // 黑洞：命中后立即失败。
     { "type": "block", "tag": "block" }

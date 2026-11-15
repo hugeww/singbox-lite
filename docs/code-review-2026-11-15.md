@@ -34,6 +34,27 @@
 
 ---
 
+
+## 补正（2026-11-15，官方 dashboard 架构）
+
+审查和修复期间沿用了「官方 sing-box dashboard 通过 `experimental.clash_api.external_ui` 托管」的说法，这个说法不正确。官方 [SagerNet/sing-box-dashboard](https://github.com/SagerNet/sing-box-dashboard) 是 sing-box 1.14+ **sing-box API 服务**（`services[type=api]`，gRPC-Web）的 Web 客户端；API 服务通过自己的 `dashboard` 选项在 `/dashboard/` 提供静态文件，与 Clash API 无关。
+
+当前代码已改为：`panel.dashboard=official` 时生成 `services[type=api].dashboard`，面板 URL 为 `http://<router>:port/dashboard/`；`panel.dashboard=native` 时才生成 `experimental.clash_api` 供内置 LuCI 面板使用。README 的对应描述已同步修正。
+
+
+## 运行期补丁：DNS detour 空 direct 出站（2026-11-15）
+
+`sing-box check` 不会发现、但 `sing-box run` 会立即失败的一个问题：
+
+```text
+start service: start dns-transport: start dns/udp[dns-direct]:
+detour to an empty direct outbound makes no sense
+```
+
+原因是生成器把 `dns-direct` 的 `detour` 指向空 `direct` 出站（`{ "type": "direct", "tag": "direct" }`）。1.14.4 允许空 direct 作为普通路由目标，但拒绝它作为 DNS 的 detour。
+
+修复：增加非空出站 `{ "type": "direct", "tag": "direct-dns", "tcp_fast_open": true }`，并让 `dns-direct` 使用 `detour: "direct-dns"`。已用最小配置实测：旧配置 `run` 立即 FATAL，新配置正常 `sing-box started`；`tests/check-config.sh` 增加静态断言，防止回归。
+
 ## 本轮修复状态（2026-11-15）
 
 以下项目在本轮已改代码并通过 `tests/run.uc`、`check-config.sh`、`matrix.sh` 与 `sing-box check`：

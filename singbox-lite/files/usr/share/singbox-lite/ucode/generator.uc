@@ -249,6 +249,7 @@ function build_config(cfg, collected) {
 	if (!group_tags.default) push(errors, '默认出口组不存在：没有可用节点');
 	if (length(errors)) return { ok: false, errors: errors, warnings: warnings };
 
+	/* direct 是空出站，1.14.4 拒绝把它作为 DNS detour；direct-dns 带 tcp_fast_open 因此非空。 */
 	let dns_servers = [{ type: 'udp', tag: 'dns-direct', server: '223.5.5.5', detour: 'direct-dns' }];
 	if (dns_mode != 'system')
 		push(dns_servers, {
@@ -293,6 +294,7 @@ function build_config(cfg, collected) {
 	let experimental = {
 		cache_file: { enabled: true, path: PATH.etc + '/cache.db', store_dns: true }
 	};
+	let services = null;
 	let panel = cfg.panel || {};
 	if (panel.enabled == '1') {
 		let listen = trim(panel.listen || '127.0.0.1');
@@ -300,19 +302,30 @@ function build_config(cfg, collected) {
 		let port = int(panel.port || 9090);
 		if (port < 1 || port > 65535) port = 9090;
 		let secret = trim(panel.secret || '');
-		if (!length(secret)) push(warnings, '面板已启用但 API 密钥为空，Clash API 将不校验密钥');
-		experimental.clash_api = {
-			external_controller: listen_address(listen, port),
-			secret: secret
-		};
-		if ((panel.dashboard || 'native') == 'official') {
+		let dashboard = (panel.dashboard || 'native') == 'official' ? 'official' : 'native';
+		if (!length(secret)) push(warnings, '面板已启用但 API 密钥为空，API 将不校验密钥');
+		if (dashboard == 'official') {
+			/*
+			 * The official sing-box dashboard is a client of the sing-box API
+			 * service (gRPC-Web), not the Clash API. It is served by the API
+			 * listener at /dashboard/; using clash_api.external_ui here would
+			 * serve files the dashboard cannot talk to.
+			 */
+			let api = { type: 'api', tag: 'api', listen: listen, listen_port: port };
+			if (length(secret)) api.secret = secret;
 			let ui = PATH.etc + '/ui';
 			if (file_exists(ui + '/index.html'))
-				experimental.clash_api.external_ui = ui;
+				api.dashboard = { enabled: true, path: ui };
 			else
 				push(warnings, '已选择官方面板，但面板文件尚未下载（设置 → 面板 → 下载面板文件）');
 			if (listen == '127.0.0.1' || listen == '::1' || listen == '[::1]')
-				push(warnings, '官方面板需要 Clash API 监听 0.0.0.0 或局域网地址，当前仅监听本机');
+				push(warnings, '官方面板需要 sing-box API 监听 0.0.0.0 或局域网地址，当前仅监听本机');
+			services = [ api ];
+		} else {
+			experimental.clash_api = {
+				external_controller: listen_address(listen, port),
+				secret: secret
+			};
 		}
 	}
 
@@ -330,6 +343,7 @@ function build_config(cfg, collected) {
 		},
 		experimental: experimental
 	};
+	if (services) config.services = services;
 	return { ok: true, config: config, warnings: warnings, errors: [] };
 }
 

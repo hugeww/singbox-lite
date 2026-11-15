@@ -35,7 +35,7 @@ if ! uci -q get singbox-lite.version_core > /dev/null 2>&1; then
 	uci set singbox-lite.version_core.core_tag=''
 fi
 
-# Ensure the Clash API panel section exists and has a secret.
+# Ensure the panel section exists and has a secret.
 if ! uci -q get singbox-lite.panel > /dev/null 2>&1; then
 	uci set singbox-lite.panel=panel
 	uci set singbox-lite.panel.enabled=1

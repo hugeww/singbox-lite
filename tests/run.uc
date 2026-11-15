@@ -9,7 +9,7 @@ import { resolve_rulesets } from 'sbx_rulesets';
 import { arch_asset, version_ge } from 'sbx_core';
 import { parse_tags, parse_release_page, mirror_url } from 'sbx_releases';
 import { asset_name, download_url, base_version, parse_apk_list, parse_apk_db } from 'sbx_plugin';
-import { pct, proxy_groups, connection_list, panel_config, last_delay, dashboard_archive_url, dashboard_selected } from 'sbx_panel';
+import { pct, proxy_groups, connection_list, panel_config, panel_status, last_delay, dashboard_archive_url, dashboard_selected } from 'sbx_panel';
 import { PATH, mkdir_p, write_json } from 'sbx_common';
 
 let failures = 0;
@@ -262,6 +262,20 @@ let pgenV6 = build_config({
 	rulesets: [], egress_groups: [], subscriptions: [], nodes: [], node_overrides: []
 }, { nodes: nodes, warnings: [] });
 check(pgenV6.ok && pgenV6.config.experimental.clash_api.external_controller == '[::]:9090', 'IPv6 clash_api controller is bracketed');
+
+/* Official dashboard is served by the sing-box API service, not Clash API */
+let officialCfg = {
+	main: {}, inbound: {}, dns: { mode: 'split' }, egress: {},
+	panel: { enabled: '1', listen: '0.0.0.0', port: '9090', secret: 'sekret', dashboard: 'official' },
+	rulesets: [], egress_groups: [], subscriptions: [], nodes: [], node_overrides: []
+};
+let ogen = build_config(officialCfg, { nodes: nodes, warnings: [] });
+check(ogen.ok && ogen.config.experimental.clash_api == null, 'official dashboard omits clash_api');
+check(length(ogen.config.services || []) == 1 && ogen.config.services[0].type == 'api' &&
+	ogen.config.services[0].listen == '0.0.0.0' && ogen.config.services[0].listen_port == 9090 &&
+	ogen.config.services[0].secret == 'sekret', 'official dashboard uses sing-box api service');
+let ost = panel_status(officialCfg);
+check(ost.ok && ost.dashboard == 'official' && ost.port == 9090, 'official panel status does not probe Clash API');
 
 if (failures) {
 	printf('FAILED: %d\n', failures);

@@ -18,8 +18,9 @@
 - **定时刷新**：cron 拉取订阅 → 重建 → `sing-box check` → 可选自动重启；内容未变不重启，重启失败回滚旧配置。
 - **核心管理**：最低 sing-box 1.14.4；GitHub 最新稳定版下载、校验、原子替换、失败回滚。
 - **版本管理**：设置页可查看核心与插件当前版本，从 GitHub Release 列表选择版本，一键更新核心或插件（插件走 apk 覆盖安装）。
-- **实时面板**：默认托管官方 [sing-box dashboard](https://github.com/SagerNet/sing-box-dashboard)（`clash_api.external_ui`，随包内嵌入口），也可切换为内置 LuCI 面板（流量、连接、代理组切换与测速）；Clash API 默认监听 `0.0.0.0:9090` 并带随机密钥。
+- **实时面板**：默认托管官方 [sing-box dashboard](https://github.com/SagerNet/sing-box-dashboard)，由 sing-box 1.14+ 的 **API 服务**（`services[type=api]` 的 `dashboard`）在 `/dashboard/` 提供，走 gRPC-Web，**不是 Clash API 面板**；也可切换为内置 LuCI 面板（走 Clash API，含流量、连接、代理组切换与测速）。API/Clash API 默认监听 `0.0.0.0:9090` 并带随机密钥。
 - **LuCI 页面**：概览、订阅、节点、规则集/分流、出口组、设置、日志。
+- **配置预览/下载**：概览页可预览生成的 sing-box JSON，弹窗内可下载 `singbox-lite-config.json`；预览只读，不会写入 `/etc/singbox-lite/config.json`。
 
 ## 环境要求
 
@@ -74,11 +75,23 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 | `/etc/singbox-lite/subs/` | 订阅原始内容 |
 | `/etc/singbox-lite/meta/` | 订阅解析结果、流量/到期 |
 | `/etc/singbox-lite/rulesets/` | 用户更新/自定义规则集 |
-| `/etc/singbox-lite/ui/` | 官方 dashboard 静态文件（`external_ui`） |
+| `/etc/singbox-lite/ui/` | 官方 dashboard 静态文件（API 服务的 `dashboard.path`） |
 | `/usr/share/singbox-lite/rulesets/` | 内置规则集 |
 | `/usr/libexec/singbox-lite/sing-box` | 托管核心 |
 | `/etc/singbox-lite/cache.db` | 核心缓存（含 DNS 缓存） |
 | `/etc/nftables.d/0-sing-box-auto-redirect.nft` | auto_redirect 写入 fw4 的兼容规则（由 sing-box 管理） |
+
+## 编辑配置
+
+本插件没有单独编辑生成 JSON 的页面：UCI 是配置源，概览页的「保存并检查配置」只是把 UCI 意图编译成 `config.json` 并执行 `sing-box check`。编辑入口在左侧各页面：
+
+- **订阅**：机场订阅 URL、UA、格式。
+- **节点**：手动分享链接/outbound JSON、节点国家/原生覆盖。
+- **规则集 / 分流**：规则集内容、启用状态、目标出口组和顺序。
+- **出口组**：自定义 selector/urltest、成员和默认节点。
+- **设置**：日志、DNS 模式、TUN、面板、核心/插件更新。
+
+在这些页面保存后，回到概览点「保存并检查配置」。如果要直接改生成后的 JSON，只能 SSH 编辑 `/etc/singbox-lite/config.json` 后重启；但下一次保存/定时刷新会重新生成并覆盖它。高级 JSON 编辑器不是当前实现的一部分（项目刻意以 UCI 表单为主，避免反向解析生成配置）。
 
 ## 配置保存与生效
 
@@ -106,17 +119,19 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 
 ### 官方 sing-box dashboard（默认）
 
-[SagerNet/sing-box-dashboard](https://github.com/SagerNet/sing-box-dashboard) 的构建产物，由 sing-box 通过 `clash_api.external_ui` 在 `http://<路由器>:9090/ui/` 直接托管（同源，无 CORS 问题）。
+[SagerNet/sing-box-dashboard](https://github.com/SagerNet/sing-box-dashboard) 的构建产物，由 sing-box 1.14+ 的 **sing-box API 服务**（`services[type=api]`）在 `http://<路由器>:9090/dashboard/` 托管。官方 dashboard 使用 gRPC-Web 与 sing-box API 通信，**不是 Clash API 面板**；它不能通过 `experimental.clash_api.external_ui` 工作。
 
 1. 设置页点「下载面板文件」，从 GitHub（可用镜像）拉取 `gh-pages` 归档并解包到 `/etc/singbox-lite/ui`；
-2. 保存配置并重启服务，生成器会写入 `experimental.clash_api.external_ui`；
+2. 保存配置并重启服务，生成器会写入 `services[type=api].dashboard.path`；
 3. 打开「面板」页即可内嵌使用；首次进入时在面板里填一次 API 地址与密钥（密钥在面板页显示，可一键复制），浏览器会记住。
 
-注意：官方面板需要 Clash API 监听 `0.0.0.0`（默认）或局域网地址，仅监听 `127.0.0.1` 时只能从路由器本机访问，生成配置会给出警告。
+注意：官方面板需要 sing-box API 监听 `0.0.0.0`（默认）或局域网地址，仅监听 `127.0.0.1` 时只能从路由器本机访问，生成配置会给出警告。
+
+面板页会直接显示当前访问地址对应的 **面板访问地址（IP:端口/dashboard/）**、**后端 API 地址（IP:端口）**和 **API 密钥**，密钥可一键复制；在内置 LuCI 面板模式下则显示 Clash API 的后端地址和密钥。
 
 ### 内置 LuCI 面板
 
-不依赖外部资源，由插件后端代理 Clash API：
+不依赖外部资源，由插件后端代理 Clash API（`experimental.clash_api`）：
 
 - 状态：核心版本、运行模式、累计上传/下载、活动连接数；
 - 代理组：`selector`/`fallback` 组可直接切换节点，所有组都能对成员做延迟测速；
@@ -124,9 +139,9 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 
 ### 通用说明
 
-Clash API 由 `config panel 'panel'` 控制：`enabled`、`listen`、`port`、`secret`、`dashboard`。密钥由 uci-defaults 首次安装时随机生成，也可在设置页重新生成。
+面板由 `config panel 'panel'` 控制：`enabled`、`listen`、`port`、`secret`、`dashboard`。`dashboard=official` 时生成 `services[type=api]`（官方 dashboard，gRPC-Web）；`dashboard=native` 时生成 `experimental.clash_api`（内置 LuCI 面板，Clash API）。两种模式使用同一个 `listen:port`，不会同时监听。密钥由 uci-defaults 首次安装时随机生成，也可在设置页重新生成。
 
-连 metacubexd / yacd 等其他面板时，把 `listen` 设为 `0.0.0.0`、在「设置 → 面板」保存后重启服务，并自行在防火墙放行该端口——这属于本插件「不改防火墙」之外的操作用户自理。
+连 metacubexd / yacd 等其他 Clash 面板时，把面板类型切到「内置」、`listen` 设为 `0.0.0.0`，在「设置 → 面板」保存后重启服务，并自行在防火墙放行该端口——这属于本插件「不改防火墙」之外的操作用户自理。
 
 ## 构建与发布
 

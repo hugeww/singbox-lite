@@ -112,9 +112,6 @@ msgstr "检查 yq"
 msgid "Clash API is not reachable. Save the configuration and restart the service."
 msgstr "无法连接 Clash API，请保存配置并重启服务。"
 
-msgid "Clash API used by the live panel page. Restart the service after changing it."
-msgstr "面板页使用的 Clash API，修改后需重启服务。"
-
 msgid "Clash YAML (yq)"
 msgstr "Clash YAML（yq）"
 
@@ -619,9 +616,6 @@ msgstr "测速间隔"
 msgid "Test latency"
 msgstr "测速"
 
-msgid "The official dashboard is only reachable from other devices when the Clash API listens on 0.0.0.0 or a LAN address."
-msgstr "官方面板只有在 Clash API 监听 0.0.0.0 或局域网地址时才能被其他设备访问。"
-
 msgid "The selected release will be downloaded and installed with apk, replacing singbox-lite and luci-app-singbox-lite."
 msgstr "将通过 apk 下载并安装所选版本，覆盖 singbox-lite 与 luci-app-singbox-lite。"
 
@@ -741,3 +735,27 @@ msgstr "不可用"
 
 msgid "legacy id"
 msgstr "旧 ID"
+
+msgid "Official sing-box dashboard served by the sing-box API."
+msgstr "由 sing-box API 提供的官方 sing-box 面板。"
+
+msgid "sing-box API is not reachable. Save the configuration and restart the service."
+msgstr "无法连接 sing-box API，请保存配置并重启服务。"
+
+msgid "Official dashboard uses the sing-box API service; the built-in panel uses the Clash API. Restart the service after changing this."
+msgstr "官方面板使用 sing-box API 服务；内置面板使用 Clash API。修改后需重启服务。"
+
+msgid "The official dashboard is only reachable from other devices when the sing-box API listens on 0.0.0.0 or a LAN address."
+msgstr "官方面板只有在 sing-box API 监听 0.0.0.0 或局域网地址时才能被其他设备访问。"
+
+msgid "API"
+msgstr "API"
+
+msgid "Backend API URL"
+msgstr "后端 API 地址"
+
+msgid "In the dashboard settings, enter the backend API URL and this secret once."
+msgstr "在 dashboard 设置中填入后端 API 地址和此密钥，只需一次。"
+
+msgid "Use this URL and secret for a third-party Clash dashboard."
+msgstr "第三方 Clash 面板使用此地址和密钥。"

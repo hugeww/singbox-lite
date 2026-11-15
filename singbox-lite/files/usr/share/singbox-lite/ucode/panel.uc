@@ -30,7 +30,7 @@ function delay_url(cfg, p) {
 	return length(trim(url)) ? trim(url) : ((p && p.url) || DEFAULT_DELAY_URL);
 }
 
-/* Official sing-box dashboard (SagerNet/sing-box-dashboard), served by sing-box via external_ui. */
+/* Official sing-box dashboard (SagerNet/sing-box-dashboard), served by the sing-box API service at /dashboard/. */
 function dashboard_dir() {
 	return PATH.etc + '/ui';
 }
@@ -56,7 +56,7 @@ function dashboard_status(cfg) {
 		installed: dashboard_installed(),
 		path: dashboard_dir(),
 		port: p.port,
-		url_path: '/ui/'
+		url_path: '/dashboard/'
 	};
 }
 
@@ -234,6 +234,13 @@ function panel_status(cfg) {
 	let dash_ready = dashboard_installed();
 	if (!p.enabled) return { ok: false, enabled: false, error: '面板未启用', dashboard: dash, dashboard_installed: dash_ready };
 	if (!length(p.secret)) return { ok: false, enabled: true, error: '未设置 API 密钥', port: p.port, listen: p.listen, dashboard: dash, dashboard_installed: dash_ready };
+	/*
+	 * The official dashboard talks to the sing-box API service, not the Clash
+	 * API. Do not probe /version over the Clash API in that mode; the panel
+	 * page only needs the listen address and whether files are installed.
+	 */
+	if (dash == 'official')
+		return { ok: true, enabled: true, port: p.port, listen: p.listen, secret: p.secret, dashboard: dash, dashboard_installed: dash_ready };
 	let v = api(cfg, 'GET', '/version');
 	if (!v.ok) return { ok: false, enabled: true, error: v.error || 'Clash API 不可达', port: p.port, listen: p.listen, dashboard: dash, dashboard_installed: dash_ready };
 	let conns = api(cfg, 'GET', '/connections');
