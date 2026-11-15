@@ -6,29 +6,98 @@
 'require ui';
 'require tools.singbox-lite as api';
 
-function addTargets(option) {
-	option.value('direct', _('Direct'));
-	option.value('default', _('Default group'));
-	option.value('auto', _('Auto group'));
-	option.value('us', _('US group'));
-	option.value('jp', _('Japan group'));
-	option.value('hk', _('Hong Kong group'));
-	option.value('other', _('Other countries'));
-	option.value('native', _('Native group'));
-	let groups = uci.sections('singbox-lite', 'egress_group') || [];
+function splitMembers(value) {
+	if (value == null)
+		return [];
+	if (Array.isArray(value))
+		return value.filter(function(v) { return v != null && v !== ''; });
+	return String(value).split(',').map(function(v) { return v.trim(); }).filter(function(v) { return v !== ''; });
+}
+
+/* api.status() payload when the backend replied, null when it is unavailable. */
+function groupStatus(status) {
+	if (!status || status.ok !== true || !status.groups || !Array.isArray(status.node_list))
+		return null;
+	return status;
+}
+
+/* Custom groups the generator will actually create: members must resolve to a known node. */
+function customGroups(status) {
+	let groups = (uci.sections('singbox-lite', 'egress_group') || []).filter(function(g) { return g.enabled != '0'; });
+	if (status == null)
+		return groups;
+	let nodes = {};
+	for (let n of status.node_list) {
+		if (!n)
+			continue;
+		for (let id of [ n.id, n.legacy_id, n.fingerprint ])
+			if (id)
+				nodes[id] = n;
+	}
+	return groups.filter(function(g) {
+		for (let id of splitMembers(g.members)) {
+			let node = nodes[id];
+			if (!node)
+				continue;
+			/* URLTest groups skip native nodes, mirroring the generator. */
+			if ((g.type || 'selector') == 'urltest' && node.native)
+				continue;
+			return true;
+		}
+		return false;
+	});
+}
+
+function addTargets(option, status, groups, current) {
+	let seen = {};
+	function add(key, label) {
+		seen[key] = true;
+		option.value(key, label);
+	}
+	add('direct', _('Direct'));
+	add('default', _('Default group'));
+	let counts = status ? status.groups : null;
+	function has(name) {
+		return counts ? (parseInt(counts[name] || 0, 10) > 0) : true;
+	}
+	if (has('auto'))
+		add('auto', _('Auto group'));
+	if (has('us'))
+		add('us', _('US group'));
+	if (has('jp'))
+		add('jp', _('Japan group'));
+	if (has('hk'))
+		add('hk', _('Hong Kong group'));
+	if (has('other'))
+		add('other', _('Other countries'));
+	if (has('native'))
+		add('native', _('Native group'));
 	for (let g of groups)
-		if (g.enabled != '0')
-			option.value(g['.name'], g.name || g['.name']);
+		add(g['.name'], g.name || g['.name']);
+	/*
+	 * Keep a saved target visible even when the group is currently
+	 * unavailable (no members / status unknown); otherwise the list widget
+	 * would silently fall back and a later save could rewrite the rule.
+	 */
+	if (current && !seen[current])
+		option.value(current, current + ' (' + _('unavailable') + ')');
 }
 
 return view.extend({
 	load: function() {
-		return uci.load('singbox-lite');
+		return Promise.all([
+			uci.load('singbox-lite'),
+			api.status().catch(function() { return {}; })
+		]);
 	},
 
-	render: function() {
-		let m = new form.Map('singbox-lite', _('Rule Sets & Routing'),
-			_('Built-in rule sets are read-only; custom rule sets are evaluated before built-in ones. Select the egress group each rule set should use.'));
+	render: function(data) {
+		let status = groupStatus(data ? data[1] : null);
+		let groups = customGroups(status);
+		let description = _('Built-in rule sets are read-only; custom rule sets are evaluated before built-in ones. Select the egress group each rule set should use.');
+		if (status == null)
+			description += ' ' + _('Node status is unavailable, so egress groups that have no members may still be listed.');
+		let m = new form.Map('singbox-lite', _('Rule Sets & Routing'), description);
 
 		let top = api.actionTable(m, _('Rule-set data'));
 		let o = top.option(form.Button, '_update_builtin', _('Update Built-in Rule Sets'));
@@ -56,7 +125,7 @@ return view.extend({
 			let s = m.section(form.NamedSection, rs['.name'], 'ruleset', rs.name || rs['.name']);
 			s.anonymous = false;
 			let opt = s.option(form.ListValue, 'target', _('Egress group'));
-			addTargets(opt);
+			addTargets(opt, status, groups, rs.target);
 			opt.default = rs.target || 'direct';
 			s.option(form.Flag, 'enabled', _('Enabled')).default = '1';
 			s.option(form.DummyValue, '_kind', _('Type')).cfgvalue = function() { return _('Built-in (read-only content)'); };
@@ -96,7 +165,7 @@ return view.extend({
 		o.placeholder = '/etc/singbox-lite/rulesets/custom.srs';
 
 		o = grid.option(form.ListValue, 'target', _('Egress group'));
-		addTargets(o);
+		addTargets(o, status, groups, null);
 
 		o = grid.option(form.Flag, 'enabled', _('Enabled'));
 		o.default = '1';

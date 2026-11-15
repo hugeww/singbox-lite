@@ -10,9 +10,12 @@
 - **可配置出口组**：内置直连/自动/默认/美国/日本/香港/其他国/原生组；支持自定义 `selector`/`urltest` 组。
 - **分流规则**：规则集 → 出口组的可排序列表；自定义规则优先于内置规则。
 - **TUN 透明代理**：`tun` 入站 + `auto_route` + `auto_redirect`；本机与 LAN 转发流量由内核 redirect 接管，不再提供 `mixed` 代理端口。
+- **保存与应用分离**：保存并检查只写 `config.json` 草案；启动/重启才部署到 `active.json`，procd 崩溃重启也不会应用未确认配置。
+- **并发安全**：build/check/refresh、核心/插件/面板更新通过 CLI 锁串行执行，避免 cron 与手动操作互相覆盖。
+- **下载与日志保护**：订阅限 5MB、远程 `.srs` 限 16MB 并校验 `SRS` 头；`log_max_kb` 启动时截断日志，日志目录仅 root 可读。
 - **内核层国内直连**：`geoip-cn` 通过 `route_exclude_address_set` 预匹配排除，国内 IP 不进入 sing-box 连接路径；可在设置页关闭。
 - **DNS 劫持与分流**：`dns_mode: hijack`；`split` 下国内 DNS 走 `223.5.5.5` 直连，其余走代理 DoH。
-- **定时刷新**：cron 拉取订阅 → 重建 → `sing-box check` → 可选自动重启；失败保留旧配置。
+- **定时刷新**：cron 拉取订阅 → 重建 → `sing-box check` → 可选自动重启；内容未变不重启，重启失败回滚旧配置。
 - **核心管理**：最低 sing-box 1.14.4；GitHub 最新稳定版下载、校验、原子替换、失败回滚。
 - **版本管理**：设置页可查看核心与插件当前版本，从 GitHub Release 列表选择版本，一键更新核心或插件（插件走 apk 覆盖安装）。
 - **实时面板**：默认托管官方 [sing-box dashboard](https://github.com/SagerNet/sing-box-dashboard)（`clash_api.external_ui`，随包内嵌入口），也可切换为内置 LuCI 面板（流量、连接、代理组切换与测速）；Clash API 默认监听 `0.0.0.0:9090` 并带随机密钥。
@@ -65,7 +68,8 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 | 路径 | 说明 |
 |---|---|
 | `/etc/config/singbox-lite` | UCI：服务、面板、订阅、节点、规则集、出口组、覆盖设置 |
-| `/etc/singbox-lite/config.json` | 生成的 sing-box 配置（0600） |
+| `/etc/singbox-lite/config.json` | 生成的 sing-box 配置草案（0600，保存/检查时写入） |
+| `/etc/singbox-lite/active.json` | 服务实际读取的配置（0600，start/restart 时从 config.json 部署） |
 | `/etc/singbox-lite/config.json.bak` | 上一份可用配置 |
 | `/etc/singbox-lite/subs/` | 订阅原始内容 |
 | `/etc/singbox-lite/meta/` | 订阅解析结果、流量/到期 |
@@ -75,6 +79,13 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 | `/usr/libexec/singbox-lite/sing-box` | 托管核心 |
 | `/etc/singbox-lite/cache.db` | 核心缓存（含 DNS 缓存） |
 | `/etc/nftables.d/0-sing-box-auto-redirect.nft` | auto_redirect 写入 fw4 的兼容规则（由 sing-box 管理） |
+
+## 配置保存与生效
+
+- 「保存并检查配置」只写 `config.json` 草案，不会改动正在运行的配置。
+- 点「启动/重启」时 init 脚本才把 `config.json` 部署为 `active.json`，procd 只运行/重启 `active.json`。
+- 因此保存后需要重启才生效；升级或崩溃重启不会把未确认的草案带进运行态。
+- 定时刷新会先比较新旧配置：内容未变不重启；重启失败会恢复 `config.json.bak` 并再次启动。
 
 ## 分流与出口模型
 
@@ -127,8 +138,8 @@ Clash API 由 `config panel 'panel'` 控制：`enabled`、`listen`、`port`、`s
 每次构建都带一个新版本号。版本由 `scripts/bump-version.sh` 统一维护，两个包的 `PKG_VERSION`、`PKG_RELEASE` 和后端 `common.uc` 的 `VERSION` 会一起更新：
 
 ```sh
-scripts/bump-version.sh          # 0.1.0 → 0.1.1（默认 patch）
-scripts/bump-version.sh minor    # 0.1.0 → 0.2.0
+scripts/bump-version.sh          # 0.1.1 → 0.1.2（默认 patch）
+scripts/bump-version.sh minor    # 0.1.1 → 0.2.0
 scripts/bump-version.sh 0.2.3    # 指定版本
 ```
 
@@ -136,9 +147,9 @@ scripts/bump-version.sh 0.2.3    # 指定版本
 
 ```sh
 scripts/bump-version.sh patch
-git commit -am "release: 0.1.1"
-git tag v0.1.1
-git push origin main v0.1.1
+git commit -am "release: 0.1.2"
+git tag v0.1.2
+git push origin main v0.1.2
 ```
 
 标签与 `singbox-lite/Makefile` 的 `PKG_VERSION` 不一致时 workflow 会直接失败，避免打错版本；手动构建不填版本号时，会在最新标签（没有标签则用 Makefile 当前版本）的基础上自动 +1 patch。
@@ -162,7 +173,7 @@ done
 ucode -L /tmp/sbxmods tests/run.uc
 ```
 
-`tests/run.uc` 覆盖链接解析、订阅格式、节点分类、规则集/出口组生成。`tests/check-config.sh` 和 `tests/matrix.sh` 会调用下载的 sing-box 1.14.4 执行 `sing-box check`。
+`tests/run.uc` 覆盖链接解析、订阅格式、节点分类、规则集/出口组生成、IPv6 面板地址、HTTPS/Clash TLS、SS obfs、下载上限和旧节点 ID 兼容。`tests/check-config.sh` 和 `tests/matrix.sh` 会调用下载的 sing-box 1.14.4 执行 `sing-box check`；CI 的 host tests 也会跑这两项。
 
 ## 许可证与规则集
 
@@ -172,7 +183,7 @@ ucode -L /tmp/sbxmods tests/run.uc
 
 ## 限制
 
-- 单份生成配置；不做 profile/多配置切换。
+- 单份生成配置；不做 profile/多配置切换。`active.json` 只是保存/应用分离的运行时副本，不是多配置 profile。
 - 不实现 FakeIP、访问控制；域名分流依赖 sniff，未识别流量按 IP/默认组处理。
 - 不实现 TPROXY/Redirect 入站；只支持 TUN + auto_redirect。
 - 不管理 fw4 的 zone/NAT；`inet sing-box` 表与 `/etc/nftables.d` 兼容规则由 sing-box 自己维护，插件只生成核心配置。

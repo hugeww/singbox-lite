@@ -721,6 +721,9 @@ msgstr "是"
 msgid "below 1.14.4"
 msgstr "低于 1.14.4"
 
+msgid "Node status is unavailable, so egress groups that have no members may still be listed."
+msgstr "节点状态不可用，因此没有成员的出口组仍可能被列出。"
+
 msgid "not installed"
 msgstr "未安装"
 
@@ -732,3 +735,9 @@ msgstr "sing-box Lite"
 
 msgid "yq"
 msgstr "yq"
+
+msgid "unavailable"
+msgstr "不可用"
+
+msgid "legacy id"
+msgstr "旧 ID"

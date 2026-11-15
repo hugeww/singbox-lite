@@ -10,10 +10,13 @@ A lightweight TUN + auto_redirect sing-box manager for LuCI. It converts airport
 - Configurable egress groups: direct, auto, default, US/Japan/Hong Kong/Other, native and custom selector/urltest groups.
 - Routing = ordered "rule set → egress group" rules; custom rules run before built-in rules.
 - TUN runtime: `tun` + `auto_route` + `auto_redirect`; no `mixed` proxy port is exposed and LAN clients need no manual proxy setting.
+- Save/apply separation: save & check writes a `config.json` draft only; start/restart deploys `active.json`, which is what procd respawns, so an unconfirmed save never goes live.
+- Concurrency guard: build/check/refresh, core/plugin/dashboard updates are serialized by a CLI lock, so cron and manual actions cannot overwrite each other.
+- Bounded downloads and logs: subscriptions are capped at 5 MB, remote `.srs` at 16 MB and checked for the `SRS` magic; `log_max_kb` truncates the log at service start and log files are root-only.
 - Kernel-level CN bypass: `geoip-cn` is added to `route_exclude_address_set`, so direct CN destinations never enter sing-box connection handling.
 - DNS hijack with split: domestic DNS goes to `223.5.5.5` directly, everything else goes through DoH over the proxy.
 - `strict_route` is off by default: router DHCP/PPPoE relies on `SO_BINDTODEVICE`; enabling it captures that traffic too. Turn it on only when stricter leak prevention is needed.
-- Scheduled subscription refresh with `sing-box check`, optional automatic restart and rollback safety.
+- Scheduled subscription refresh with `sing-box check`, optional automatic restart and rollback safety; unchanged content does not trigger a restart, and a failed restart restores the previous config.
 - Core manager: requires sing-box >= 1.14.4, downloads GitHub releases, verifies, atomically installs and rolls back on failure.
 - Version manager: shows the installed core and plugin versions, lists GitHub release tags, and updates either of them from the Settings page (the plugin is reinstalled with apk).
 - Live panel: serves the official [sing-box dashboard](https://github.com/SagerNet/sing-box-dashboard) through `clash_api.external_ui` (default), with a built-in LuCI panel (traffic, connections, proxy-group switching, latency tests) as the alternative; the Clash API listens on `0.0.0.0:9090` with a random secret.
@@ -22,7 +25,7 @@ A lightweight TUN + auto_redirect sing-box manager for LuCI. It converts airport
 ## Requirements
 
 - OpenWrt 25.12+ with apk; 24.10 is best-effort only.
-- ~100 MB free space for the full sing-box binary.
+- ~120 MB free space for the full sing-box binary and its compressed archive.
 - Kernel modules: `kmod-tun`, `kmod-nft-core` (includes `nft_redir`), `kmod-nft-nat`, `kmod-nft-queue`, `kmod-nfnetlink-queue`. The apk dependencies pull them in; custom images must build them in. Without `kmod-nft-queue`/`kmod-nfnetlink-queue`, redirect still works but pre-match (the CN bypass) is disabled.
 - firewall4/nftables (the OpenWrt 25.12 default); fw3/iptables is not supported.
 - Do not combine with mwan3, passwall or other fwmark-based policy routing/transparent proxies; auto_redirect conflicts with `route.default_mark` and `dialOptions.routing_mark`.
@@ -49,6 +52,13 @@ Then force-reload the browser (Ctrl+F5): page strings come from `/cgi-bin/luci/a
 
 Open **Services → sing-box Lite**, install/update the core, add subscriptions/nodes, save & check, then start. On start, the router and LAN-forwarded traffic are captured automatically; clients need no manual proxy port. For a bypass-router setup, point client gateways at this router.
 
+## Config save and apply
+
+- "Save & check config" writes the `config.json` draft only; it does not touch the running configuration.
+- Start/restart deploys the draft to `active.json`; procd runs and respawns from that file.
+- A saved draft therefore needs a restart to take effect, and a crash/respawn cannot apply an unconfirmed draft.
+- Scheduled refresh compares the generated config with the current one: unchanged content does not restart; a failed restart restores `config.json.bak` and starts again.
+
 ## Build and release
 
 Plain pushes never build. A build runs only when it is requested: manually (Actions → `build` → `Run workflow`, artifacts only) or by pushing a `v*` version tag, which also publishes the GitHub Release that the plugin self-update reads (`singbox-lite-<arch>-openwrt-25.12.tar.gz`).
@@ -56,13 +66,34 @@ Plain pushes never build. A build runs only when it is requested: manually (Acti
 Every build carries a new version. `scripts/bump-version.sh` keeps `PKG_VERSION`/`PKG_RELEASE` in both package Makefiles and the backend `VERSION` in sync:
 
 ```sh
-scripts/bump-version.sh patch   # 0.1.0 -> 0.1.1
-git commit -am "release: 0.1.1"
-git tag v0.1.1
-git push origin main v0.1.1
+scripts/bump-version.sh patch   # 0.1.1 -> 0.1.2
+git commit -am "release: 0.1.2"
+git tag v0.1.2
+git push origin main v0.1.2
 ```
 
 The workflow fails when the tag does not match `PKG_VERSION`, and a manual build without an explicit version uses the next patch after the latest tag.
+
+## Tests
+
+The host harness is `tests/run.uc`; `tests/check-config.sh` and `tests/matrix.sh` run `sing-box check` against sing-box 1.14.4. See [tests/README.md](tests/README.md).
+
+```sh
+mkdir -p /tmp/sbxmods
+for m in common config links nodes rulesets subs generator core releases plugin panel; do
+  ln -sf "$PWD/singbox-lite/files/usr/share/singbox-lite/ucode/$m.uc" "/tmp/sbxmods/sbx_$m.uc"
+done
+ucode -L /tmp/sbxmods tests/run.uc
+```
+
+## Limitations
+
+- One generated configuration; no profile/multi-config switching. `active.json` is the save/apply runtime copy, not a profile.
+- No FakeIP or access control; domain routing depends on sniffing, and unrecognised traffic falls back to IP rules/default group.
+- No TPROXY/redirect inbound; only TUN + auto_redirect.
+- The plugin does not manage fw4 zones/NAT; sing-box owns its `inet sing-box` table and nftables compatibility file.
+- Plugin self-update consumes `singbox-lite-<arch>-openwrt-25.12.tar.gz` from GitHub Releases; only x86_64 and aarch64_cortex-a53 are built.
+- Clash YAML conversion needs `yq` (not a hard dependency).
 
 ## Documentation
 

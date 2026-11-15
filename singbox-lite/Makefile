@@ -15,7 +15,7 @@ define Package/singbox-lite
   CATEGORY:=Network
   TITLE:=sing-box TUN/auto_redirect manager (backend)
   URL:=https://github.com/hugeww/singbox-lite
-  DEPENDS:=+curl +ca-bundle +ucode +ucode-mod-fs +ucode-mod-uci +ucode-mod-ubus +ucode-mod-digest \
+  DEPENDS:=+curl +ca-bundle +unzip +ucode +ucode-mod-fs +ucode-mod-uci \
 	+kmod-tun +kmod-nft-core +kmod-nft-nat +kmod-nft-queue +kmod-nfnetlink-queue
   PKGARCH:=all
 endef
@@ -77,7 +77,15 @@ endef
 
 define Package/singbox-lite/postrm
 #!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] && exit 0
+# Destructive cleanup must run on removal, but not when opkg calls postrm for
+# an upgrade. APK maps this script to post-deinstall and may call it without
+# arguments, so only skip the explicit opkg "upgrade" case.
+if [ "$$1" = "upgrade" ]; then
+	exit 0
+fi
+if [ -n "$${IPKG_INSTROOT}" ]; then
+	exit 0
+fi
 /etc/init.d/singbox-lite stop >/dev/null 2>&1 || true
 /etc/init.d/singbox-lite disable >/dev/null 2>&1 || true
 sed -i '/# singbox-lite/d' /etc/crontabs/root >/dev/null 2>&1 || true

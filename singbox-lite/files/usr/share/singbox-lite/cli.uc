@@ -10,8 +10,15 @@ import { core_path, core_status, update_core, rollback_core, MIN_VERSION, versio
 import { plugin_status, plugin_check, update_plugin, PLUGIN_REPO } from 'sbx_plugin';
 import { list_tags, cache_read, cache_write } from 'sbx_releases';
 import { panel_status, panel_proxies, panel_select, panel_delay, panel_connections, panel_close, random_secret, dashboard_status, update_dashboard } from 'sbx_panel';
-import { unlink, rename, dirname } from 'fs';
+import { unlink, rename, dirname, mkdir, rmdir, stat } from 'fs';
 import { parse_link } from 'sbx_links';
+
+/* Mutating commands are serialised with a portable lock (path based, no flock:
+   OpenWrt/busybox does not guarantee util-linux flock). PATH.lock is a
+   directory, created atomically with mkdir(); its owner file records
+   "<pid> <epoch>" so a crashed run can be detected and stolen safely. */
+const LOCK_WAIT_SECONDS = 10;
+const LOCK_STALE_SECONDS = 30 * 60;
 
 function output(obj) {
 	print(sprintf('%J', obj));
@@ -49,6 +56,86 @@ function service_pid() {
 	return trim(read_text('/var/run/singbox-lite.pid', ''));
 }
 
+function self_pid() {
+	let m = match(read_text('/proc/self/stat', ''), /^([0-9]+)/);
+	return m ? int(m[1]) : 0;
+}
+
+function read_lock_owner() {
+	let m = match(trim(read_text(PATH.lock + '/owner', '')), /^([0-9]+)[ \t]+([0-9]+)/);
+	if (!m) return { pid: 0, ts: 0 };
+	return { pid: int(m[1]), ts: int(m[2]) };
+}
+
+function pid_alive(pid) {
+	if (!pid || pid <= 0) return false;
+	/* Prefer /proc (Linux/OpenWrt) so the liveness probe cannot leak
+	   "kill: No such process" noise into command output. */
+	if (file_exists('/proc/self/stat')) return file_exists('/proc/' + pid);
+	return run_capture('kill -0 ' + sprintf('%d', pid) + ' 2>/dev/null').ok;
+}
+
+function lock_is_stale(st) {
+	if (st && st.type != 'directory') return true; /* leftover regular file from an older layout */
+	let owner = read_lock_owner();
+	let ts = owner.ts || (st && st.mtime) || 0;
+	let age = time() - ts;
+	if (age > LOCK_STALE_SECONDS) return true;
+	if (owner.pid > 0 && !pid_alive(owner.pid)) return true;
+	if (!owner.pid && age > 60) return true;
+	return false;
+}
+
+function clear_stale_lock(inode) {
+	let st = stat(PATH.lock);
+	if (!st || (inode != null && st.inode != inode)) return false;
+	if (st.type != 'directory') {
+		try { unlink(PATH.lock); } catch (e) { return false; }
+		return true;
+	}
+	try { unlink(PATH.lock + '/owner'); } catch (e) {}
+	try { rmdir(PATH.lock); } catch (e) { return false; }
+	return true;
+}
+
+function lock_acquire() {
+	mkdir_p(PATH.run_dir);
+	let pid = self_pid();
+	let deadline = time() + LOCK_WAIT_SECONDS;
+	while (true) {
+		if (mkdir(PATH.lock) === true) {
+			if (!write_text(PATH.lock + '/owner', sprintf('%d %d', pid, time()), 384)) {
+				try { rmdir(PATH.lock); } catch (e) {}
+				return { ok: false, lock: PATH.lock, error: '无法写入并发锁信息 ' + PATH.lock };
+			}
+			return { ok: true, lock: PATH.lock };
+		}
+		if (!file_exists(PATH.lock))
+			return { ok: false, lock: PATH.lock, error: '无法创建并发锁 ' + PATH.lock + '，请检查 ' + PATH.run_dir + ' 的权限' };
+		let st = stat(PATH.lock);
+		if (st && lock_is_stale(st)) {
+			if (clear_stale_lock(st.inode)) continue;
+		}
+		if (time() >= deadline) {
+			let owner = read_lock_owner();
+			return {
+				ok: false, lock: PATH.lock,
+				error: '另一个 singbox-lite 操作正在执行（锁 ' + PATH.lock + (owner.pid ? '，pid ' + owner.pid : '') + '），等待 ' + LOCK_WAIT_SECONDS + ' 秒后超时；如确认无进程占用可删除该目录后重试'
+			};
+		}
+		sleep(1);
+	}
+}
+
+function lock_release() {
+	let owner = read_lock_owner();
+	let pid = self_pid();
+	if (pid > 0 && owner.pid > 0 && owner.pid != pid) return false;
+	try { unlink(PATH.lock + '/owner'); } catch (e) {}
+	try { rmdir(PATH.lock); } catch (e) { return false; }
+	return true;
+}
+
 function generate(cfg) {
 	let collected = collect_nodes(cfg);
 	let gen = build_config(cfg, collected);
@@ -78,21 +165,51 @@ function save_config(cfg, gen) {
 	let core = check_core(cfg);
 	if (!core.ok) return core;
 	mkdir_p(PATH.etc);
-	let tmp = PATH.config_json + '.tmp';
 	let json = sprintf('%J', gen.config);
-	if (!write_text(tmp, json, 384)) return { ok: false, error: '写入临时配置失败' };
+	let current = file_exists(PATH.config_json) ? read_text(PATH.config_json, '') : null;
+	let changed = (current !== json);
+	if (!changed) {
+		/* Content is already deployed; skip the rewrite but still validate the
+		   file we are about to leave running (core version/behaviour may have
+		   changed since it was written). */
+		let chk = check_config_with(core.path, PATH.config_json);
+		if (!chk.ok) return { ok: false, changed: false, error: '配置校验失败', detail: chk.output };
+		return { ok: true, changed: false, bytes: length(json), warnings: gen.warnings };
+	}
+	let tmp = PATH.config_json + '.tmp';
+	if (!write_text(tmp, json, 384)) return { ok: false, changed: true, error: '写入临时配置失败' };
 	let chk = check_config_with(core.path, tmp);
 	if (!chk.ok) {
 		try { unlink(tmp); } catch (e) {}
-		return { ok: false, error: '配置校验失败', detail: chk.output };
+		return { ok: false, changed: true, error: '配置校验失败', detail: chk.output };
 	}
-	if (file_exists(PATH.config_json))
-		run_capture('cp ' + sh_quote(PATH.config_json) + ' ' + sh_quote(PATH.config_bak));
+	if (current != null) {
+		let backup = run_capture('cp ' + sh_quote(PATH.config_json) + ' ' + sh_quote(PATH.config_bak));
+		if (!backup.ok) {
+			try { unlink(tmp); } catch (e) {}
+			return { ok: false, changed: true, error: '备份旧配置失败' };
+		}
+	}
 	if (rename(tmp, PATH.config_json) !== true) {
 		try { unlink(tmp); } catch (e) {}
-		return { ok: false, error: '替换配置失败' };
+		return { ok: false, changed: true, error: '替换配置失败' };
 	}
-	return { ok: true, bytes: length(json), warnings: gen.warnings };
+	return { ok: true, changed: true, bytes: length(json), warnings: gen.warnings };
+}
+
+function restore_config_backup() {
+	if (!file_exists(PATH.config_bak)) return false;
+	let tmp = PATH.config_json + '.rollback';
+	let cp = run_capture('cp ' + sh_quote(PATH.config_bak) + ' ' + sh_quote(tmp));
+	if (!cp.ok) {
+		try { unlink(tmp); } catch (e) {}
+		return false;
+	}
+	if (rename(tmp, PATH.config_json) !== true) {
+		try { unlink(tmp); } catch (e) {}
+		return false;
+	}
+	return true;
 }
 
 function sync_cron(cfg) {
@@ -142,7 +259,7 @@ function cmd_check(cfg) {
 		return { ok: false, error: saved.error || '配置校验失败', detail: saved.detail || '', errors: [ saved.error || '配置校验失败' ], warnings: gen.warnings };
 	sync_cron(cfg);
 	let core = core_status(cfg);
-	return { ok: true, error: null, detail: '', warnings: gen.warnings, core: core.version || '' };
+	return { ok: true, error: null, detail: '', changed: saved.changed === true, warnings: gen.warnings, core: core.version || '' };
 }
 
 function cmd_build(cfg, opts) {
@@ -198,11 +315,34 @@ function cmd_refresh(cfg, opts) {
 			status.ok = false;
 			status.errors = [ saved.error || '保存配置失败' ];
 		} else {
+			status.changed = saved.changed === true;
+			status.restarted = false;
 			sync_cron(cfg);
-			if (service_running() && opts['no-restart'] != true && cfg.main.auto_apply != '0') {
+			let auto_apply = (cfg.main || {}).auto_apply != '0';
+			if (saved.changed && service_running() && opts['no-restart'] != true && auto_apply) {
 				let rc = system([PATH.init, 'restart']);
 				sleep(3);
 				status.restarted = (rc == 0 && service_running());
+				if (!status.restarted) {
+					/* keep the previous known-good config and bring the service
+					   back up; only report failure when rollback fails too. */
+					if (restore_config_backup()) {
+						let rc2 = system([PATH.init, 'restart']);
+						sleep(3);
+						if (rc2 == 0 && service_running()) {
+							status.rolled_back = true;
+							push(status.warnings, '新配置重启失败，已回滚到上一份配置');
+						} else {
+							status.ok = false;
+							status.rolled_back = false;
+							status.errors = [ '新配置重启失败，回滚后仍无法启动' ];
+						}
+					} else {
+						status.ok = false;
+						status.rolled_back = false;
+						status.errors = [ '新配置重启失败，且没有可回滚的配置备份' ];
+					}
+				}
 			}
 		}
 	}
@@ -225,7 +365,7 @@ function cmd_status(cfg) {
 		});
 	}
 	let node_list = [];
-	for (let n in collected.nodes) push(node_list, { id: n.id, name: n.name, type: n.type, server: n.server, port: n.server_port, country: n.country, country_mode: n.country_mode || 'auto', native: n.native, native_mode: n.native_mode || 'auto', source: n.source_name });
+	for (let n in collected.nodes) push(node_list, { id: n.id, legacy_id: n.legacy_id, fingerprint: n.fingerprint, name: n.name, type: n.type, server: n.server, port: n.server_port, country: n.country, country_mode: n.country_mode || 'auto', native: n.native, native_mode: n.native_mode || 'auto', source: n.source_name });
 	let cfg_hash = '';
 	if (file_exists(PATH.config_json)) {
 		let r = run_capture('sha256sum ' + sh_quote(PATH.config_json) + ' 2>/dev/null');
@@ -252,14 +392,15 @@ function cmd_update_rulesets(cfg, opts) {
 
 function cmd_log(opts) {
 	let lines = int(opts.lines || 100);
+	if (lines < 1) lines = 100;
+	if (lines > 10000) lines = 10000;
 	let out = '';
 	for (let file in [ PATH.log_dir + '/core.log', PATH.log_dir + '/app.log' ]) {
-		let text = read_text(file, '');
-		if (!length(text)) continue;
-		let arr = split(text, '\n');
-		let start = length(arr) > lines ? length(arr) - lines : 0;
-		out += '=== ' + file + ' ===\n';
-		for (let i = start; i < length(arr); i++) out += arr[i] + '\n';
+		if (!file_exists(file)) continue;
+		let r = run_capture('tail -n ' + lines + ' ' + sh_quote(file) + ' 2>/dev/null');
+		if (!length(trim(r.out))) continue;
+		out += '=== ' + file + ' ===\n' + r.out;
+		if (substr(out, -1) != '\n') out += '\n';
 	}
 	return { ok: true, text: out };
 }
@@ -281,65 +422,88 @@ function cmd_release_scan(cfg) {
 	return out;
 }
 
-function main() {
-	let argv = ARGV;
+function dispatch(argv) {
 	let cmd = argv[0] || 'help';
 	let opts = parse_args(slice(argv, 1));
 	let cfg = null;
 	try {
-		if (cmd == 'version') return output({ ok: true, version: VERSION });
-		if (cmd == 'help') return output({ ok: true, commands: [ 'preview', 'check', 'build', 'refresh', 'status', 'update-rulesets', 'update-core', 'update-plugin', 'core-check', 'core-rollback', 'plugin-status', 'plugin-check', 'release-scan', 'panel-status', 'panel-proxies', 'panel-connections', 'panel-select', 'panel-delay', 'panel-close', 'panel-secret', 'dashboard-status', 'update-dashboard', 'parse-link', 'log' ] });
+		if (cmd == 'version') return { ok: true, version: VERSION };
+		if (cmd == 'help') return { ok: true, commands: [ 'preview', 'check', 'build', 'refresh', 'status', 'update-rulesets', 'update-core', 'update-plugin', 'core-check', 'core-rollback', 'plugin-status', 'plugin-check', 'release-scan', 'panel-status', 'panel-proxies', 'panel-connections', 'panel-select', 'panel-delay', 'panel-close', 'panel-secret', 'dashboard-status', 'update-dashboard', 'parse-link', 'log' ] };
 		if (cmd == 'parse-link') {
 			let p = parse_link(opts._[0] || '');
-			return output(p);
+			return p;
 		}
-		if (cmd == 'core-rollback') return output(rollback_core());
-		if (cmd == 'plugin-status') return output(plugin_status());
+		if (cmd == 'core-rollback') return rollback_core();
+		if (cmd == 'plugin-status') return plugin_status();
 		if (cmd == 'core-check') {
 			try { cfg = load_config(); } catch (e) {}
 			let l = latest_tag((cfg && cfg.main && cfg.main.core_mirror) || '');
-			if (!l.ok) return output(l);
+			if (!l.ok) return l;
 			let asset = arch_asset();
-			if (!asset) return output({ ok: false, error: '当前架构没有可用资产' });
+			if (!asset) return { ok: false, error: '当前架构没有可用资产' };
 			let dl = download_url(l.tag, asset, (cfg && cfg.main && cfg.main.core_mirror) || '');
-			return output({ ok: true, tag: l.tag, asset: asset, url: dl.url, version: dl.version });
+			return { ok: true, tag: l.tag, asset: asset, url: dl.url, version: dl.version };
 		}
 		cfg = load_config();
-		if (cmd == 'plugin-check') return output(plugin_check(cfg));
-		if (cmd == 'release-scan') return output(cmd_release_scan(cfg));
-		if (cmd == 'update-plugin') return output(update_plugin(cfg, opts));
-		if (cmd == 'panel-status') return output(panel_status(cfg));
-		if (cmd == 'dashboard-status') return output(dashboard_status(cfg));
-		if (cmd == 'update-dashboard') return output(update_dashboard(cfg, opts));
-		if (cmd == 'panel-proxies') return output(panel_proxies(cfg));
-		if (cmd == 'panel-connections') return output(panel_connections(cfg, int(opts.limit || 30)));
-		if (cmd == 'panel-select') return output(panel_select(cfg, opts.group || '', opts.node || ''));
-		if (cmd == 'panel-delay') return output(panel_delay(cfg, opts.group || ''));
-		if (cmd == 'panel-close') return output(panel_close(cfg, opts.id || ''));
+		if (cmd == 'plugin-check') return plugin_check(cfg);
+		if (cmd == 'release-scan') return cmd_release_scan(cfg);
+		if (cmd == 'update-plugin') return update_plugin(cfg, opts);
+		if (cmd == 'panel-status') return panel_status(cfg);
+		if (cmd == 'dashboard-status') return dashboard_status(cfg);
+		if (cmd == 'update-dashboard') return update_dashboard(cfg, opts);
+		if (cmd == 'panel-proxies') return panel_proxies(cfg);
+		if (cmd == 'panel-connections') return panel_connections(cfg, int(opts.limit || 30));
+		if (cmd == 'panel-select') return panel_select(cfg, opts.group || '', opts.node || '');
+		if (cmd == 'panel-delay') return panel_delay(cfg, opts.group || '');
+		if (cmd == 'panel-close') return panel_close(cfg, opts.id || '');
 		if (cmd == 'panel-secret') {
 			let secret = random_secret();
 			if (getenv('SINGBOX_LITE_CONFIG_JSON') == null) {
 				uci_set('panel', 'secret', secret);
 				uci_commit();
 			}
-			return output({ ok: true, secret: secret });
+			return { ok: true, secret: secret };
 		}
 		if (cmd == 'preview') {
 			let gen = generate(cfg);
-			if (!gen.ok) return output({ ok: false, errors: gen.errors, warnings: gen.warnings });
-			return output({ ok: true, config: gen.config, warnings: gen.warnings });
+			if (!gen.ok) return { ok: false, errors: gen.errors, warnings: gen.warnings };
+			return { ok: true, config: gen.config, warnings: gen.warnings };
 		}
-		if (cmd == 'check') return output(cmd_check(cfg));
-		if (cmd == 'build') return output(cmd_build(cfg, opts));
-		if (cmd == 'refresh') return output(cmd_refresh(cfg, opts));
-		if (cmd == 'status') return output(cmd_status(cfg));
-		if (cmd == 'update-rulesets') return output(cmd_update_rulesets(cfg, opts));
-		if (cmd == 'update-core') return output(update_core(cfg, opts));
-		if (cmd == 'log') return output(cmd_log(opts));
-		return output({ ok: false, error: 'unknown command: ' + cmd });
+		if (cmd == 'check') return cmd_check(cfg);
+		if (cmd == 'build') return cmd_build(cfg, opts);
+		if (cmd == 'refresh') return cmd_refresh(cfg, opts);
+		if (cmd == 'status') return cmd_status(cfg);
+		if (cmd == 'update-rulesets') return cmd_update_rulesets(cfg, opts);
+		if (cmd == 'update-core') return update_core(cfg, opts);
+		if (cmd == 'log') return cmd_log(opts);
+		return { ok: false, error: 'unknown command: ' + cmd };
 	} catch (e) {
-		return output({ ok: false, error: 'exception: ' + e });
+		return { ok: false, error: 'exception: ' + e };
 	}
+}
+
+const MUTATING_COMMANDS = {
+	build: true, check: true, refresh: true,
+	'update-core': true, 'update-plugin': true, 'update-dashboard': true,
+	'update-rulesets': true, 'core-rollback': true
+};
+
+function main() {
+	let argv = ARGV;
+	let cmd = argv[0] || 'help';
+	let lock = null;
+	if (MUTATING_COMMANDS[cmd]) {
+		lock = lock_acquire();
+		if (!lock.ok) return output(lock);
+	}
+	let result;
+	try {
+		result = dispatch(argv);
+	} catch (e) {
+		result = { ok: false, error: 'exception: ' + e };
+	}
+	if (lock) lock_release();
+	return output(result);
 }
 
 main();

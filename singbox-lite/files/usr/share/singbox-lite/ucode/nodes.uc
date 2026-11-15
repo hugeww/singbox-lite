@@ -17,15 +17,56 @@ const DEFAULT_NATIVE = '原生,原生IP,native,家宽,住宅,residential';
  */
 const DEFAULT_INFO_KEYWORDS = '剩余流量,流量剩余,到期时间,过期时间,下次重置,重置时间,套餐,官网,客服,公告';
 
+function regexp_escape(s) {
+	let out = '';
+	for (let i = 0; i < length(s); i++) {
+		let c = substr(s, i, 1);
+		if (index('.^$*+?()[]{}|\\', c) >= 0)
+			out += '\\';
+		out += c;
+	}
+	return out;
+}
+
 function has_keyword(name, keyword) {
 	name = lc(name == null ? '' : name);
 	keyword = lc(keyword == null ? '' : keyword);
 	if (!length(keyword)) return false;
 	if (match(keyword, /^[a-z0-9._-]+$/)) {
-		let re = regexp('(^|[^a-z0-9])' + replace(keyword, /([.\\-])/g, '\\$1') + '([^a-z0-9]|$)');
+		/*
+		 * 机场常把数字直接粘在国别码后面（US01/JP01/HK01/native01），所以
+		 * 边界只排除 ASCII 字母：数字、连字符、空格、中文都算分隔符。
+		 * Russia/AUS 里的 "us" 前面是字母，仍然不会被误匹配。
+		 */
+		let re = regexp('(^|[^a-z])' + regexp_escape(keyword) + '([^a-z]|$)');
 		return match(name, re) != null;
 	}
 	return index(name, keyword) >= 0;
+}
+
+/*
+ * 规范化 outbound 供指纹使用：递归按键名排序（保证同一节点无论来自 URI、
+ * Clash 还是 sing-box JSON 订阅都得到同一 JSON），去掉 null，数组顺序保留
+ * （例如 alpn 的顺序有语义）。
+ */
+function canonical_identity(value) {
+	if (type(value) == 'object') {
+		let out = {};
+		for (let k in sort(keys(value))) {
+			if (value[k] == null) continue;
+			out[k] = canonical_identity(value[k]);
+		}
+		return out;
+	}
+	if (type(value) == 'array') {
+		let out = [];
+		for (let item in value) {
+			if (item == null) continue;
+			push(out, canonical_identity(item));
+		}
+		return out;
+	}
+	return value;
 }
 
 function classify_country(name, egress) {
@@ -50,7 +91,13 @@ function is_native(name, egress) {
 	return false;
 }
 
-function node_fingerprint(outbound) {
+/*
+ * Compatibility id: the pre-2026-11-15 fingerprint. It is not used for new
+ * node ids, but UCI written by older versions (node_overrides.id, egress group
+ * members/default_node) still references it. Keep it as a lookup alias so an
+ * upgrade does not silently lose user overrides or group membership.
+ */
+function legacy_fingerprint(outbound) {
 	let secret = '';
 	if (outbound.uuid) secret = outbound.uuid;
 	else if (outbound.password) secret = outbound.password;
@@ -62,6 +109,26 @@ function node_fingerprint(outbound) {
 		sprintf('%d', int(outbound.server_port || 0)),
 		secret
 	]);
+}
+
+/*
+ * 节点身份必须覆盖整个 outbound：同服务器/同端口/同 UUID、但 ws path、
+ * SNI、flow、obfs、plugin 不同的节点是不同节点，不能因为指纹过粗被
+ * collect_nodes() 当成重复节点丢掉。整份 outbound（去掉展示用的 tag/name）
+ * 规范化后取哈希，既不会把不同节点合并，又能让完全相同的节点去重。
+ */
+function node_fingerprint(outbound) {
+	if (!outbound || type(outbound) != 'object') return stable_id([ '' ]);
+	let identity = {};
+	for (let k in keys(outbound)) {
+		if (k == 'tag' || k == 'name') continue;
+		if (outbound[k] == null) continue;
+		identity[k] = outbound[k];
+	}
+	/* 不同来源可能把数字写成字符串，先归一化，避免同一节点被拆成两个。 */
+	if (identity.server_port != null) identity.server_port = int(identity.server_port);
+	if (identity.alter_id != null) identity.alter_id = int(identity.alter_id);
+	return stable_id([ sprintf('%J', canonical_identity(identity)) ]);
 }
 
 /*
@@ -109,44 +176,39 @@ function is_info_node(name, cfg) {
 }
 
 function collect_nodes(cfg) {
-	let nodes = [];
+	let candidates = [];
 	let warnings = [];
 	let seen = {};
 	let overrides = override_map(cfg);
 
-	function add_node(raw, source, source_name) {
+	/*
+	 * Two passes: collect unique outbounds by full fingerprint first, then
+	 * assign ids. A node whose legacy id is unique keeps that legacy id, so
+	 * UCI written by older versions (overrides, egress-group members,
+	 * default_node) keeps working after the fingerprint change. Only nodes
+	 * that would collide on the legacy id get the new full-fingerprint id.
+	 */
+	function add_candidate(raw, source, source_name) {
 		if (!raw || !raw.outbound) return;
 		let outbound = raw.outbound;
-		let id = node_fingerprint(outbound);
-		if (seen[id]) {
+		let fingerprint = node_fingerprint(outbound);
+		if (seen[fingerprint]) {
 			push(warnings, sprintf('重复节点已跳过：%s（来源 %s）', raw.name || outbound.server, source_name));
 			return;
 		}
-		let ov = overrides[override_key(id)] || {};
+		let legacy_id = legacy_fingerprint(outbound);
+		let ov = overrides[override_key(fingerprint)] || overrides[override_key(legacy_id)] || {};
 		if (ov.enabled == '0') return;
 		let name = trim(raw.name || outbound.server || 'node');
 		if (is_info_node(name, cfg)) {
 			push(warnings, sprintf('已跳过信息节点：%s', name));
 			return;
 		}
-		let country = ov.country && ov.country != 'auto' ? ov.country : classify_country(name, cfg.egress);
-		let native = ov.native_mode == '1' ? true : (ov.native_mode == '0' ? false : (ov.native == '1' ? true : (ov.native == '0' ? false : is_native(name, cfg.egress))));
-		let native_mode = length(ov.native_mode || '') ? ov.native_mode : (ov.native || 'auto');
-		seen[id] = true;
-		push(nodes, {
-			id: id,
-			tag: node_tag(name, id),
-			name: name,
-			type: raw.type || outbound.type,
-			server: raw.server || outbound.server,
-			server_port: int(raw.server_port || outbound.server_port || 0),
-			outbound: outbound,
-			source: source,
-			source_name: source_name,
-			country: country,
-			country_mode: ov.country || 'auto',
-			native: native,
-			native_mode: native_mode
+		seen[fingerprint] = true;
+		push(candidates, {
+			raw: raw, source: source, source_name: source_name,
+			outbound: outbound, fingerprint: fingerprint, legacy_id: legacy_id,
+			override: ov, name: name
 		});
 	}
 
@@ -158,7 +220,7 @@ function collect_nodes(cfg) {
 			continue;
 		}
 		for (let n in meta.nodes)
-			add_node(n, 'subscription:' + sub['.name'], sub.name || sub['.name']);
+			add_candidate(n, 'subscription:' + sub['.name'], sub.name || sub['.name']);
 	}
 
 	for (let n in cfg.nodes) {
@@ -168,7 +230,43 @@ function collect_nodes(cfg) {
 			push(warnings, sprintf('手动节点 %s 解析失败：%s', n.name || n['.name'], parsed.error));
 			continue;
 		}
-		add_node(parsed, 'manual:' + n['.name'], n.name || '手动节点');
+		add_candidate(parsed, 'manual:' + n['.name'], n.name || '手动节点');
+	}
+
+	let legacy_count = {};
+	for (let c in candidates)
+		legacy_count[c.legacy_id] = (legacy_count[c.legacy_id] || 0) + 1;
+	let used_ids = {};
+	let nodes = [];
+	for (let c in candidates) {
+		let id = legacy_count[c.legacy_id] == 1 ? c.legacy_id : c.fingerprint;
+		/* Extremely unlikely 32-bit hash collision: keep ids unique. */
+		if (used_ids[id]) id = c.fingerprint;
+		let base = id;
+		let n = 2;
+		while (used_ids[id]) id = base + '_' + (n++);
+		used_ids[id] = true;
+		let ov = c.override;
+		let country = ov.country && ov.country != 'auto' ? ov.country : classify_country(c.name, cfg.egress);
+		let native = ov.native_mode == '1' ? true : (ov.native_mode == '0' ? false : (ov.native == '1' ? true : (ov.native == '0' ? false : is_native(c.name, cfg.egress))));
+		let native_mode = length(ov.native_mode || '') ? ov.native_mode : (ov.native || 'auto');
+		push(nodes, {
+			id: id,
+			legacy_id: c.legacy_id,
+			fingerprint: c.fingerprint,
+			tag: node_tag(c.name, id),
+			name: c.name,
+			type: c.raw.type || c.outbound.type,
+			server: c.raw.server || c.outbound.server,
+			server_port: int(c.raw.server_port || c.outbound.server_port || 0),
+			outbound: c.outbound,
+			source: c.source,
+			source_name: c.source_name,
+			country: country,
+			country_mode: ov.country || 'auto',
+			native: native,
+			native_mode: native_mode
+		});
 	}
 
 	return { nodes: nodes, warnings: warnings };
@@ -193,8 +291,8 @@ function group_nodes(nodes) {
 
 function find_node(nodes, id) {
 	for (let n in nodes)
-		if (n.id == id) return n;
+		if (n.id == id || n.legacy_id == id || n.fingerprint == id) return n;
 	return null;
 }
 
-export { classify_country, is_native, node_fingerprint, node_tag, override_key, collect_nodes, group_nodes, find_node };
+export { classify_country, is_native, node_fingerprint, legacy_fingerprint, node_tag, override_key, collect_nodes, group_nodes, find_node };

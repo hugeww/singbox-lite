@@ -354,11 +354,13 @@ function parse_socks(u, scheme) {
 	return mk_node('socks', u.name, u.host, u.port || 1080, out, []);
 }
 
-function parse_http(u) {
+function parse_http(u, scheme) {
+	let secure = lc2(scheme) == 'https';
+	let default_port = secure ? 443 : 8080;
 	let out = {
 		type: 'http',
 		server: u.host,
-		server_port: int(u.port || 8080)
+		server_port: int(u.port || default_port)
 	};
 	if (length(u.userinfo)) {
 		let cred = url_decode(u.userinfo);
@@ -370,7 +372,9 @@ function parse_http(u) {
 			out.username = cred;
 		}
 	}
-	return mk_node('http', u.name, u.host, u.port || 8080, out, []);
+	/* https:// 代理是 HTTP over TLS，不加 tls 会被当明文 HTTP 用。 */
+	if (secure) out.tls = { enabled: true, server_name: u.host };
+	return mk_node('http', u.name, u.host, u.port || default_port, out, []);
 }
 
 function parse_link(link) {
@@ -388,7 +392,7 @@ function parse_link(link) {
 	if (scheme == 'tuic') return parse_tuic(u);
 	if (scheme == 'anytls') return parse_anytls(u);
 	if (scheme == 'socks' || scheme == 'socks5') return parse_socks(u, scheme);
-	if (scheme == 'http' || scheme == 'https') return parse_http(u);
+	if (scheme == 'http' || scheme == 'https') return parse_http(u, scheme);
 	return { ok: false, error: 'unsupported scheme: ' + scheme };
 }
 
@@ -434,6 +438,35 @@ function clash_transport(p, server) {
 	return null;
 }
 
+/*
+ * Clash shadowsocks 插件参数 -> sing-box 插件参数。
+ * Clash 写 plugin-opts: { mode, host }，sing-box 的 obfs-local 需要
+ * "obfs=<mode>;obfs-host=<host>"；v2ray-plugin 默认 websocket 模式，布尔型
+ * tls 在 sing-box 参数里是裸 token。未知插件按原样保留，不丢信息也不崩溃。
+ */
+function clash_ss_plugin(name, opts) {
+	opts = opts != null && type(opts) == 'object' ? opts : {};
+	let plugin = lc2(name);
+	let parts = [];
+	if (plugin == 'obfs') {
+		push(parts, 'obfs=' + (opts.mode || 'http'));
+		if (length(opts.host || '')) push(parts, 'obfs-host=' + opts.host);
+		return { plugin: 'obfs-local', plugin_opts: join(';', parts) };
+	}
+	if (plugin == 'v2ray-plugin') {
+		push(parts, 'mode=' + (opts.mode || 'websocket'));
+		if (length(opts.host || '')) push(parts, 'host=' + opts.host);
+		if (length(opts.path || '')) push(parts, 'path=' + opts.path);
+		if (opts.tls == true || opts.tls == 'true') push(parts, 'tls');
+		return { plugin: 'v2ray-plugin', plugin_opts: join(';', parts) };
+	}
+	for (let k in keys(opts)) {
+		if (opts[k] == true) push(parts, k);
+		else if (opts[k] != false && opts[k] != null) push(parts, k + '=' + opts[k]);
+	}
+	return { plugin: name, plugin_opts: join(';', parts) };
+}
+
 function clash_to_outbound(p) {
 	if (!p || type(p) != 'object') return null;
 	let t = lc2(p.type);
@@ -445,14 +478,9 @@ function clash_to_outbound(p) {
 		out.method = p.cipher;
 		out.password = p.password;
 		if (p.plugin) {
-			out.plugin = p.plugin;
-			let po = p['plugin-opts'] || {};
-			let parts = [];
-			for (let k in keys(po)) {
-				if (po[k] == true) push(parts, k);
-				else if (po[k] != false && po[k] != null) push(parts, k + '=' + po[k]);
-			}
-			out.plugin_opts = join(';', parts);
+			let mapped = clash_ss_plugin(p.plugin, p['plugin-opts']);
+			out.plugin = mapped.plugin;
+			out.plugin_opts = mapped.plugin_opts;
 		}
 	} else if (t == 'vmess') {
 		out.type = 'vmess';
@@ -489,6 +517,12 @@ function clash_to_outbound(p) {
 		out.password = p.password;
 		out.tls = clash_tls(p, server, true);
 	} else if (t == 'socks5' || t == 'socks') {
+		/*
+		 * sing-box 1.14.4's socks outbound has no TLS field (only http does);
+		 * emitting tls here would make `sing-box check` fail. Skip the node
+		 * instead of silently downgrading an encrypted proxy to plaintext.
+		 */
+		if (p.tls == true || p.tls == 'true') return null;
 		out.type = 'socks';
 		out.version = '5';
 		out.username = p.username;
@@ -497,6 +531,7 @@ function clash_to_outbound(p) {
 		out.type = 'http';
 		out.username = p.username;
 		out.password = p.password;
+		out.tls = clash_tls(p, server, false);
 	} else {
 		return null;
 	}

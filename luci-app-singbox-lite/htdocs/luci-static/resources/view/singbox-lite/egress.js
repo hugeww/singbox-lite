@@ -9,8 +9,14 @@
 function addNodes(option, nodes, allowEmpty) {
 	if (allowEmpty)
 		option.value('', _('Auto / first member'));
-	for (let n of nodes)
-		option.value(n.id, (n.name || n.id) + ' [' + (n.country || 'other') + ']');
+	for (let n of nodes) {
+		let label = (n.name || n.id) + ' [' + (n.country || 'other') + ']';
+		option.value(n.id, label);
+		/* Collision nodes get a new id; keep the old one selectable so UCI
+		   written before the fingerprint change still shows its selection. */
+		if (n.legacy_id && n.legacy_id != n.id)
+			option.value(n.legacy_id, label + ' (' + _('legacy id') + ')');
+	}
 }
 
 return view.extend({

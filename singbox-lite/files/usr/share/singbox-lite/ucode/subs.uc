@@ -145,10 +145,14 @@ function fetch_subscription(section, url, ua, format) {
 	mkdir_p(PATH.meta_dir);
 	let body_file = PATH.run_dir + '/' + section + '.body';
 	let hdr_file = PATH.run_dir + '/' + section + '.hdr';
-	let r = shell_http_get(url, body_file, hdr_file, ua || 'sing-box/1.14', 120);
+	/* 在下载阶段就用 --max-filesize 限流，别等整个 body 写满 /tmp。 */
+	let r = shell_http_get(url, body_file, hdr_file, ua || 'sing-box/1.14', 120, MAX_BODY);
 	if (!r.ok || trim(r.out) != '200') {
+		let code = trim(r.out);
 		try { unlink(body_file); } catch (e) {}
-		return { ok: false, error: '下载失败：HTTP ' + trim(r.out) };
+		if (code == '200')
+			return { ok: false, error: '下载失败：内容超过 5MB 限制' };
+		return { ok: false, error: '下载失败：HTTP ' + code };
 	}
 	let body = read_text(body_file, '');
 	let parsed = parse_body(body, format);

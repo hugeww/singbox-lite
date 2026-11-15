@@ -192,12 +192,19 @@ function stable_id(parts) {
 	return fnv1a32(join('|', parts));
 }
 
-function shell_http_get(url, out, header_file, ua, timeout) {
+/*
+ * Download with curl. `max_size`（字节，可选）通过 --max-filesize 在传输过程中
+ * 生效，避免超大响应先把 /tmp 写满、再由调用方事后检查；老调用方不传该参数，
+ * 行为保持不变。
+ */
+function shell_http_get(url, out, header_file, ua, timeout, max_size) {
 	mkdir_p(dirname(out));
 	mkdir_p(dirname(header_file));
+	max_size = int(max_size || 0);
 	let cmd = 'curl --proto ' + sh_quote('=https,http') + ' -fsSL' +
 		' -H ' + sh_quote('Accept-Encoding: identity') +
 		' --connect-timeout 10 --max-time ' + int(timeout || 60) +
+		(max_size > 0 ? ' --max-filesize ' + max_size : '') +
 		' -A ' + sh_quote(ua || 'sing-box/1.14') +
 		' -D ' + sh_quote(header_file) +
 		' -o ' + sh_quote(out) +

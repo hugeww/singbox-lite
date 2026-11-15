@@ -2,7 +2,7 @@
 
 import { trim, split_csv, file_exists, PATH } from 'sbx_common';
 import { group_nodes, find_node } from 'sbx_nodes';
-import { resolve_rulesets, rule_set_tag } from 'sbx_rulesets';
+import { resolve_rulesets } from 'sbx_rulesets';
 
 function tag_slug(s) {
 	s = lc(trim(s == null ? '' : s));
@@ -47,15 +47,59 @@ function make_urltest(tag, members, url, interval, tolerance) {
 function default_node_tag(members, id) {
 	if (length(id || '')) {
 		for (let n in members)
-			if (n.id == id) return n.tag;
+			if (n.id == id || n.legacy_id == id || n.fingerprint == id) return n.tag;
 	}
 	return length(members) ? members[0].tag : null;
 }
 
-function custom_group_tag(name) {
-	let t = tag_slug(name);
-	if (substr(t, 0, 3) != 'eg_') t = 'eg_' + t;
-	return t;
+/* Tags reserved by the generator's built-in groups. */
+const RESERVED_GROUP_TAGS = {
+	direct: true, default: true, auto: true, native: true, us: true, jp: true, hk: true, other: true
+};
+
+/*
+ * 自定义出口组 tag 契约（与 luci-app-singbox-lite 的 rulesets.js 共用）：
+ * 规则集的 target 里存的就是 egress_group 的 UCI section 名（LuCI 新建 section
+ * 的 id 形如 new%06x，例如 new1a2b3c），所以生成器必须原样使用 section 名作为
+ * outbound tag，不能再加 eg_ 前缀或做 slug 归一化，否则 target 永远匹配不上。
+ * 历史数据里本来就叫 eg_* 的 section 会原样保留。只有当 section 名为空、与保留
+ * tag 冲突或与其它 tag 重复时，才退回 eg_<slug> 并输出 warning，绝不静默产生重复 tag。
+ */
+function custom_group_plans(cfg, nodes) {
+	let entries = [];
+	let wanted = {};
+	for (let g in cfg.egress_groups || []) {
+		if (g.enabled == '0') continue;
+		let section = g['.name'] == null ? '' : g['.name'];
+		push(entries, { group: g, section: section });
+		if (length(section) && !RESERVED_GROUP_TAGS[section]) wanted[section] = true;
+	}
+	let used = {};
+	for (let n in nodes || []) used[n.tag] = true;
+	let plans = [];
+	for (let e in entries) {
+		let tag = e.section;
+		let warning = null;
+		if (!length(tag) || RESERVED_GROUP_TAGS[tag] || used[tag]) {
+			let base = 'eg_' + tag_slug(e.section);
+			tag = base;
+			let n = 2;
+			while (used[tag] || wanted[tag]) tag = base + '_' + (n++);
+			warning = sprintf('自定义出口组 %s 的 section 名「%s」不可直接用作 tag，已改用 %s',
+				e.group.name || e.section || '(空)', length(e.section) ? e.section : '(空)', tag);
+		}
+		used[tag] = true;
+		push(plans, { group: e.group, tag: tag, warning: warning });
+	}
+	return plans;
+}
+
+/* Clash API 监听地址：IPv6 字面量必须加方括号（:: -> [::]:9090、::1 -> [::1]:9090）。 */
+function listen_address(listen, port) {
+	let host = listen == null ? '' : listen;
+	if (match(host, /^\[.*\]$/)) host = substr(host, 1, length(host) - 2);
+	if (match(host, /:/)) return '[' + host + ']:' + port;
+	return host + ':' + port;
 }
 
 function build_config(cfg, collected) {
@@ -113,11 +157,12 @@ function build_config(cfg, collected) {
 		group_tags.default = true;
 	}
 
-	/* custom egress groups */
+	/* custom egress groups: tag is the UCI section name verbatim (contract above) */
 	let custom_groups = {};
-	for (let g in cfg.egress_groups || []) {
-		if (g.enabled == '0') continue;
-		let tag = custom_group_tag(g['.name']);
+	for (let p in custom_group_plans(cfg, nodes)) {
+		let g = p.group;
+		let tag = p.tag;
+		if (p.warning) push(warnings, p.warning);
 		let members = [];
 		for (let id in as_list(g.members)) {
 			let n = find_node(nodes, id);
@@ -159,7 +204,6 @@ function build_config(cfg, collected) {
 	let dns_rules = [];
 	if (dns_mode == 'split')
 		push(dns_rules, { domain_suffix: [ '.lan', '.local', '.home.arpa' ], server: 'dns-direct' });
-	let used_file_tags = {};
 	let route_exclude_tags = [];
 	let route_exclude_seen = {};
 
@@ -178,7 +222,6 @@ function build_config(cfg, collected) {
 				/* GeoIP-only rule sets are intended for route address matching, not DNS rules. */
 				if (!match(f.path, /\/geoip-[^\/]*$/))
 					push(dns_tags, f.tag);
-				used_file_tags[f.tag] = true;
 				/* The built-in CN rule is a full geoip-cn match; exclude it from TUN routes at the nftables layer. */
 				if (rule.kind == 'builtin' && rule.source == 'builtin_cn' && rule.target == 'direct' &&
 				    match(f.path, /\/geoip-cn\.srs$/) && !route_exclude_seen[f.tag]) {
@@ -208,7 +251,11 @@ function build_config(cfg, collected) {
 
 	let dns_servers = [{ type: 'udp', tag: 'dns-direct', server: '223.5.5.5', detour: 'direct' }];
 	if (dns_mode != 'system')
-		push(dns_servers, { type: 'https', tag: 'dns-proxy', server: '1.1.1.1', detour: 'default' });
+		push(dns_servers, {
+			type: 'https', tag: 'dns-proxy', server: '1.1.1.1', detour: 'default',
+			/* 服务器地址是 IP，用固定 SNI 校验证书，避免依赖 1.1.1.1 的 IP SAN。 */
+			tls: { enabled: true, server_name: 'cloudflare-dns.com' }
+		});
 	if (dns_mode == 'proxy')
 		dns_rules = [];
 	let dns = {
@@ -255,7 +302,7 @@ function build_config(cfg, collected) {
 		let secret = trim(panel.secret || '');
 		if (!length(secret)) push(warnings, '面板已启用但 API 密钥为空，Clash API 将不校验密钥');
 		experimental.clash_api = {
-			external_controller: listen + ':' + port,
+			external_controller: listen_address(listen, port),
 			secret: secret
 		};
 		if ((panel.dashboard || 'native') == 'official') {

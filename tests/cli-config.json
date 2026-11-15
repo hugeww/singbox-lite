@@ -1,7 +1,19 @@
 {
-  "main": { "log_level": "info", "core_source": "managed", "auto_apply": "1" },
-  "inbound": { "address": "172.19.0.1/30,fdfe:dcba:9876::1/126", "mtu": "9000", "strict_route": "0", "exclude_cn": "1" },
-  "dns": { "mode": "split", "strategy": "prefer_ipv4" },
+  "main": {
+    "log_level": "info",
+    "core_source": "managed",
+    "auto_apply": "1"
+  },
+  "inbound": {
+    "address": "172.19.0.1/30,fdfe:dcba:9876::1/126",
+    "mtu": "9000",
+    "strict_route": "0",
+    "exclude_cn": "1"
+  },
+  "dns": {
+    "mode": "split",
+    "strategy": "prefer_ipv4"
+  },
   "egress": {
     "auto_url": "https://www.gstatic.com/generate_204",
     "auto_interval": "10m",
@@ -10,17 +22,53 @@
     "native_keywords": "原生,原生IP,native,家宽,住宅,residential"
   },
   "rulesets": [
-    { ".name": "rs_custom_1", "kind": "custom", "name": "Example", "type": "inline", "domains": "example.com\n1.2.3.0/24", "target": "us", "enabled": "1", "order": "10" }
+    {
+      ".name": "rs_custom_1",
+      "kind": "custom",
+      "name": "Example",
+      "type": "inline",
+      "domains": "example.com\n1.2.3.0/24",
+      "target": "us",
+      "enabled": "1",
+      "order": "10"
+    }
   ],
   "egress_groups": [
-    { ".name": "eg_custom1", "name": "Custom US", "type": "selector", "members": "6a05e42e,e620f934", "default_node": "6a05e42e", "enabled": "1" }
+    {
+      ".name": "eg_custom1",
+      "name": "Custom US",
+      "type": "selector",
+      "members": "6a05e42e,e620f934",
+      "default_node": "6a05e42e",
+      "enabled": "1"
+    }
   ],
   "subscriptions": [],
   "nodes": [
-    { ".name": "n1", "name": "US Node", "link": "vless://11111111-1111-1111-1111-111111111111@us.example.com:443?security=tls&sni=us.example.com#US-01", "enabled": "1" },
-    { ".name": "n2", "name": "JP Node", "link": "trojan://pw@jp.example.com:443?sni=jp.example.com#JP-01", "enabled": "1" },
-    { ".name": "n3", "name": "HK Node", "link": "hysteria2://pw@hk.example.com:443?sni=hk.example.com#HK-01", "enabled": "1" },
-    { ".name": "n4", "name": "Native Node", "link": "vless://11111111-1111-1111-1111-111111111111@native.example.com:443?security=reality&sni=native.example.com&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=01#原生-01", "enabled": "1" }
+    {
+      ".name": "n1",
+      "name": "US Node",
+      "link": "vless://11111111-1111-1111-1111-111111111111@us.example.com:443?security=tls&sni=us.example.com#US-01",
+      "enabled": "1"
+    },
+    {
+      ".name": "n2",
+      "name": "JP Node",
+      "link": "trojan://pw@jp.example.com:443?sni=jp.example.com#JP-01",
+      "enabled": "1"
+    },
+    {
+      ".name": "n3",
+      "name": "HK Node",
+      "link": "hysteria2://pw@hk.example.com:443?sni=hk.example.com#HK-01",
+      "enabled": "1"
+    },
+    {
+      ".name": "n4",
+      "name": "Native Node",
+      "link": "vless://11111111-1111-1111-1111-111111111111@native.example.com:443?security=reality&sni=native.example.com&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&sid=01#原生-01",
+      "enabled": "1"
+    }
   ],
   "node_overrides": []
 }

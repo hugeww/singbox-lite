@@ -3,7 +3,7 @@
 import { readfile } from 'fs';
 import { parse_link, parse_manual_input, clash_to_outbound } from 'sbx_links';
 import { parse_body } from 'sbx_subs';
-import { classify_country, is_native, node_fingerprint, node_tag, override_key, collect_nodes, group_nodes } from 'sbx_nodes';
+import { classify_country, is_native, node_fingerprint, legacy_fingerprint, node_tag, override_key, collect_nodes, group_nodes } from 'sbx_nodes';
 import { build_config } from 'sbx_generator';
 import { resolve_rulesets } from 'sbx_rulesets';
 import { arch_asset, version_ge } from 'sbx_core';
@@ -37,6 +37,17 @@ let tuic = parse_link('tuic://11111111-1111-1111-1111-111111111111:pw@example.ne
 check(tuic.ok && tuic.outbound.tls.alpn[0] == 'h3', 'tuic parse');
 let bad = parse_link('ssr://abc');
 check(!bad.ok, 'unsupported protocol rejected');
+let httpsProxy = parse_link('https://u:p@proxy.example.com:443#proxy');
+check(httpsProxy.ok && httpsProxy.outbound.tls && httpsProxy.outbound.tls.enabled, 'https proxy gets tls');
+let clashHttpTls = clash_to_outbound({ type: 'http', server: 'proxy.example.com', port: 443, username: 'u', password: 'p', tls: true });
+check(clashHttpTls && clashHttpTls.tls && clashHttpTls.tls.enabled, 'clash http tls kept');
+check(clash_to_outbound({ type: 'socks5', server: 'proxy.example.com', port: 1080, tls: true }) == null, 'clash socks5 tls skipped (unsupported by sing-box)');
+let clashSsObfs = clash_to_outbound({ type: 'ss', server: 'ss.example.com', port: 8388, cipher: 'aes-256-gcm', password: 'p',
+	plugin: 'obfs', 'plugin-opts': { mode: 'http', host: 'bing.com' } });
+check(clashSsObfs && clashSsObfs.plugin == 'obfs-local' && match(clashSsObfs.plugin_opts, /obfs=http/) != null && match(clashSsObfs.plugin_opts, /obfs-host=bing\.com/) != null, 'clash ss obfs mapped to obfs-local');
+let clashSsV2 = clash_to_outbound({ type: 'ss', server: 'ss.example.com', port: 8388, cipher: 'aes-256-gcm', password: 'p',
+	plugin: 'v2ray-plugin', 'plugin-opts': { mode: 'websocket', host: 'cdn.example.com', path: '/ws', tls: true } });
+check(clashSsV2 && clashSsV2.plugin == 'v2ray-plugin' && match(clashSsV2.plugin_opts, /mode=websocket/) != null && match(clashSsV2.plugin_opts, /tls/) != null, 'clash v2ray-plugin mapped');
 
 /* subscription formats */
 let base = parse_body(fixture('base64-sub.txt'), 'auto');
@@ -56,6 +67,9 @@ check(classify_country('HK-01', egress) == 'hk', 'HK country classification');
 check(classify_country('Singapore', egress) == 'other', 'other country classification');
 check(is_native('原生 IP 01', egress), 'native keyword');
 check(!is_native('normal 01', egress), 'non-native keyword');
+check(classify_country('US01', egress) == 'us' && classify_country('JP01', egress) == 'jp' && classify_country('HK01', egress) == 'hk', 'country code with digits classified');
+check(classify_country('Russia', egress) == 'other' && classify_country('AUS', egress) == 'other', 'country code inside word not matched');
+check(is_native('native01', egress), 'native keyword with digits');
 
 /* readable tags + info-node filtering */
 check(node_tag('香港 01', 'abc12345') == '香港 01 [abc12345]', 'node tag keeps readable name');
@@ -84,6 +98,13 @@ let oid = node_fingerprint(oparse.outbound);
 check(oid == lc(oid), 'node ids are lowercase');
 check(override_key('ABCD12') == 'abcd12', 'override_key lowercases ids');
 
+/* full identity: same server/uuid/port but different ws path must not dedupe */
+let ws1 = parse_link('vmess://eyJhZGQiOiAiZXhhbXBsZS5jb20iLCAicG9ydCI6ICI0NDMiLCAiaWQiOiAiVVVJRCIsICJuZXQiOiAid3MiLCAicGF0aCI6ICIvd3MxIiwgInRscyI6ICJ0bHMiLCAicHMiOiAiQSJ9');
+let ws2 = parse_link('vmess://eyJhZGQiOiAiZXhhbXBsZS5jb20iLCAicG9ydCI6ICI0NDMiLCAiaWQiOiAiVVVJRCIsICJuZXQiOiAid3MiLCAicGF0aCI6ICIvd3MyIiwgInRscyI6ICJ0bHMiLCAicHMiOiAiQiJ9');
+check(ws1.ok && ws2.ok && node_fingerprint(ws1.outbound) != node_fingerprint(ws2.outbound), 'transport differences change fingerprint');
+let wsDup = parse_link('vmess://eyJhZGQiOiAiZXhhbXBsZS5jb20iLCAicG9ydCI6ICI0NDMiLCAiaWQiOiAiVVVJRCIsICJuZXQiOiAid3MiLCAicGF0aCI6ICIvd3MxIiwgInRscyI6ICJ0bHMiLCAicHMiOiAiQSJ9');
+check(node_fingerprint(ws1.outbound) == node_fingerprint(wsDup.outbound), 'identical nodes keep same fingerprint');
+
 mkdir_p(PATH.meta_dir);
 write_json(PATH.meta_dir + '/ovtest.json', { nodes: [ { name: 'US-LA-01', type: oparse.type, server: oparse.server, server_port: oparse.server_port, outbound: oparse.outbound } ] });
 
@@ -104,6 +125,8 @@ check(groups_of(collect([ { '.name': 'ov_a', id: uc(oid), native_mode: '1' } ]))
 check(groups_of(collect([ { '.name': 'ov_a', id: oid, native_mode: '0' } ])) == 'auto=1 native=0 us=1', 'override: native_mode=0 stays non-native');
 check(groups_of(collect([ { '.name': 'ov_a', id: oid, native_mode: 'auto' } ])) == 'auto=1 native=0 us=1', 'override: native_mode=auto uses keywords');
 check(groups_of(collect([ { '.name': 'ov_a', id: oid, enabled: '0' } ])) == 'auto=0 native=0 us=0', 'override: enabled=0 drops node');
+/* old UCI written before the 2026-11-15 fingerprint change keeps working via legacy id */
+check(groups_of(collect([ { '.name': 'ov_legacy', id: legacy_fingerprint(oparse.outbound), native_mode: '1' } ])) == 'auto=0 native=1 us=0', 'override: legacy id still matches');
 
 /* generator */
 function mknode(link, country, native) {
@@ -143,6 +166,7 @@ if (gen.ok) {
 	check(tun.listen == null && tun.listen_port == null, 'mixed listen fields removed');
 	check(index(tun.route_exclude_address_set || [], 'rs_builtin_cn_1') >= 0, 'CN geoip rule set excluded from tun routes');
 	check(gen.config.dns.servers[0].type == 'udp' && gen.config.dns.servers[0].detour == 'direct', 'direct DNS bypasses the proxy detour');
+	check(gen.config.dns.servers[1].tls && gen.config.dns.servers[1].tls.server_name == 'cloudflare-dns.com', 'proxy DoH sets tls server_name');
 	let route = gen.config.route.rules;
 	check(route[3].domain_suffix && route[3].outbound == 'us', 'custom rule before built-ins');
 	check(route[length(route) - 1].rule_set && route[length(route) - 1].outbound == 'default', 'built-in fallback target');
@@ -150,6 +174,25 @@ if (gen.ok) {
 	let genNoExclude = build_config(cfg, { nodes: nodes, warnings: [] });
 	check(genNoExclude.ok && !genNoExclude.config.inbounds[0].route_exclude_address_set, 'exclude_cn=0 disables the CN pre-match exclusion');
 	cfg.inbound.exclude_cn = '1';
+
+	/* custom egress group: tag must equal the UCI section name LuCI stores as target */
+	let customCfg = {
+		main: { log_level: 'info' },
+		inbound: { address: '172.19.0.1/30,fdfe:dcba:9876::1/126', mtu: '9000', strict_route: '0', exclude_cn: '1' },
+		dns: { mode: 'split', strategy: 'prefer_ipv4' },
+		egress: { auto_url: 'https://www.gstatic.com/generate_204', auto_interval: '10m', auto_tolerance: '50', default_group: 'auto', native_keywords: '原生,native' },
+		rulesets: [ { '.name': 'rs_custom_target', kind: 'custom', name: 'Target test', type: 'inline', domains: 'target.example', target: 'new1a2b3c', enabled: '1', order: '10' } ],
+		egress_groups: [ { '.name': 'new1a2b3c', name: 'LuCI group', type: 'selector', members: [ nodes[0].id ], default_node: nodes[0].id, enabled: '1' } ],
+		subscriptions: [], nodes: [], node_overrides: []
+	};
+	let cgen = build_config(customCfg, { nodes: nodes, warnings: [] });
+	check(cgen.ok, 'custom egress target builds');
+	let customTag = false, customTarget = false;
+	if (cgen.ok) {
+		for (let o in cgen.config.outbounds) if (o.tag == 'new1a2b3c') customTag = true;
+		for (let rr in cgen.config.route.rules) if (rr.outbound == 'new1a2b3c') customTarget = true;
+	}
+	check(customTag && customTarget, 'custom egress tag matches UCI section target');
 }
 
 /* rule set resolution */
@@ -210,6 +253,12 @@ let pgen = build_config(panelCfg, { nodes: nodes, warnings: [] });
 check(pgen.ok && pgen.config.experimental.clash_api.external_controller == '0.0.0.0:9090' && pgen.config.experimental.clash_api.secret == 'sekret', 'generator emits clash_api');
 let pgenOff = build_config({ main: {}, inbound: {}, dns: { mode: 'split' }, egress: {}, panel: { enabled: '0' }, rulesets: [], egress_groups: [], subscriptions: [], nodes: [], node_overrides: [] }, { nodes: nodes, warnings: [] });
 check(pgenOff.ok && pgenOff.config.experimental.clash_api == null, 'clash_api omitted when panel disabled');
+let pgenV6 = build_config({
+	main: {}, inbound: {}, dns: { mode: 'split' }, egress: {},
+	panel: { enabled: '1', listen: '::', port: '9090', secret: 'sekret', dashboard: 'native' },
+	rulesets: [], egress_groups: [], subscriptions: [], nodes: [], node_overrides: []
+}, { nodes: nodes, warnings: [] });
+check(pgenV6.ok && pgenV6.config.experimental.clash_api.external_controller == '[::]:9090', 'IPv6 clash_api controller is bracketed');
 
 if (failures) {
 	printf('FAILED: %d\n', failures);

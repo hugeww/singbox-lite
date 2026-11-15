@@ -88,6 +88,22 @@ jobs:
           done
           "$UCODE_BIN" -L /tmp/sbxmods tests/run.uc
 
+      - name: Config checks (sing-box 1.14.4)
+        run: |
+          set -eu
+          mkdir -p /tmp/sing-box
+          curl -fsSL --retry 3 --connect-timeout 15 --max-time 300 \
+            -o /tmp/sing-box.tar.gz \
+            https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-linux-amd64-musl.tar.gz
+          tar -xzf /tmp/sing-box.tar.gz -C /tmp/sing-box
+          CORE_BIN=$(find /tmp/sing-box -name sing-box -type f | head -n 1)
+          chmod 755 "$CORE_BIN"
+          export CORE_BIN
+          export UCODE_BIN=/tmp/ucode-install/bin/ucode
+          export LD_LIBRARY_PATH="/tmp/ucode-install/lib:${LD_LIBRARY_PATH:-}"
+          tests/check-config.sh
+          tests/matrix.sh
+
       - name: JS syntax
         run: |
           find luci-app-singbox-lite/htdocs -name '*.js' -print0 | xargs -0 -n1 node --check

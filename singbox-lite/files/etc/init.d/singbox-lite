@@ -6,6 +6,7 @@ USE_PROCD=1
 
 SINGBOX_LITE_ETC="/etc/singbox-lite"
 SINGBOX_LITE_CONF="$SINGBOX_LITE_ETC/config.json"
+SINGBOX_LITE_ACTIVE="$SINGBOX_LITE_ETC/active.json"
 SINGBOX_LITE_LOG="/var/log/singbox-lite/core.log"
 SINGBOX_LITE_PID="/var/run/singbox-lite.pid"
 SINGBOX_LITE_ACTIVE_HASH="/var/run/singbox-lite.active.hash"
@@ -14,6 +15,24 @@ SINGBOX_LITE_MANAGED_CORE="/usr/libexec/singbox-lite/sing-box"
 log() {
 	mkdir -p "$(dirname "$SINGBOX_LITE_LOG")" 2> /dev/null
 	printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$SINGBOX_LITE_LOG" 2> /dev/null
+}
+
+# Keep the last N KB of a log file (0 or empty means unlimited). Written without
+# eval: the limit is validated as plain digits and passed as a numeric tail arg.
+truncate_log() {
+	local max_kb log size
+	max_kb="$1"
+	log="$2"
+	[ -f "$log" ] || return 0
+	case "$max_kb" in
+		''|*[!0-9]*) max_kb=2048 ;;
+	esac
+	[ "$max_kb" -gt 0 ] 2> /dev/null || return 0
+	size="$(wc -c < "$log" 2> /dev/null)" || return 0
+	[ "$size" -gt "$((max_kb * 1024))" ] 2> /dev/null || return 0
+	if tail -c "$((max_kb * 1024))" "$log" > "$log.tmp" 2> /dev/null; then
+		mv "$log.tmp" "$log" 2> /dev/null || rm -f "$log.tmp" 2> /dev/null
+	fi
 }
 
 core_path() {
@@ -45,11 +64,16 @@ boot() {
 }
 
 start_service() {
-	local start_delay core
+	local start_delay core log_max_kb
 	config_load singbox-lite
 	config_get start_delay 'main' 'start_delay' 0
+	config_get log_max_kb 'main' 'log_max_kb' 2048
 
+	# Logs contain domains/SNI and subscription credentials may appear in
+	# errors: keep newly created dirs/files private to root.
+	umask 077
 	mkdir -p "$SINGBOX_LITE_ETC" /var/log/singbox-lite /var/run
+	truncate_log "$log_max_kb" "$SINGBOX_LITE_LOG"
 	if [ "$start_delay" -gt 0 ] 2> /dev/null; then
 		sleep "$start_delay"
 	fi
@@ -59,18 +83,33 @@ start_service() {
 		log "core is not executable: $core"
 		return 1
 	fi
-	if [ ! -f "$SINGBOX_LITE_CONF" ]; then
+	if [ ! -f "$SINGBOX_LITE_CONF" ] && [ ! -f "$SINGBOX_LITE_ACTIVE" ]; then
 		log "config is missing: $SINGBOX_LITE_CONF"
 		return 1
 	fi
 
+	# Save/apply separation: config.json is the checked draft; only an explicit
+	# start/restart deploys it to active.json, which is what procd runs (and what
+	# procd respawns after a crash). A save alone never changes the live config.
+	if [ -f "$SINGBOX_LITE_CONF" ]; then
+		if ! cp "$SINGBOX_LITE_CONF" "$SINGBOX_LITE_ACTIVE.tmp" 2> /dev/null; then
+			log "failed to stage active config: $SINGBOX_LITE_CONF"
+			return 1
+		fi
+		chmod 600 "$SINGBOX_LITE_ACTIVE.tmp" 2> /dev/null
+		if ! mv "$SINGBOX_LITE_ACTIVE.tmp" "$SINGBOX_LITE_ACTIVE" 2> /dev/null; then
+			log "failed to deploy active config: $SINGBOX_LITE_ACTIVE"
+			return 1
+		fi
+	fi
+
 	if command -v sha256sum > /dev/null 2>&1; then
-		sha256sum "$SINGBOX_LITE_CONF" | awk '{print $1}' > "$SINGBOX_LITE_ACTIVE_HASH" 2> /dev/null
+		sha256sum "$SINGBOX_LITE_ACTIVE" | awk '{print $1}' > "$SINGBOX_LITE_ACTIVE_HASH" 2> /dev/null
 	fi
 
 	procd_open_instance singbox-lite
-	procd_set_param command /bin/sh -c "exec '$core' -D '$SINGBOX_LITE_ETC' run -c '$SINGBOX_LITE_CONF' >> '$SINGBOX_LITE_LOG' 2>&1"
-	procd_set_param file "$SINGBOX_LITE_CONF"
+	procd_set_param command /bin/sh -c "exec '$core' -D '$SINGBOX_LITE_ETC' run -c '$SINGBOX_LITE_ACTIVE' >> '$SINGBOX_LITE_LOG' 2>&1"
+	procd_set_param file "$SINGBOX_LITE_ACTIVE"
 	procd_set_param pidfile "$SINGBOX_LITE_PID"
 	procd_set_param respawn 3600 5 5
 	procd_set_param reload_signal HUP

@@ -148,10 +148,22 @@ function last_delay(info) {
 	return (last && int(last.delay)) || 0;
 }
 
+/*
+ * Clash API URL host: 0.0.0.0/:: listen on every interface, so query loopback;
+ * other IPv6 literals must be bracketed (http://[::1]:9090/...).
+ */
+function api_host(listen) {
+	let host = trim(listen == null ? '' : listen);
+	if (host == '0.0.0.0' || host == '::' || host == '[::]') return '127.0.0.1';
+	if (match(host, /^\[.*\]$/)) host = substr(host, 1, length(host) - 2);
+	if (match(host, /:/)) return '[' + host + ']';
+	return host;
+}
+
 function api(cfg, method, path, body) {
 	let p = panel_config(cfg);
 	if (!p.enabled) return { ok: false, error: '面板未启用' };
-	let host = (p.listen == '0.0.0.0' || p.listen == '::' || p.listen == '[::]') ? '127.0.0.1' : p.listen;
+	let host = api_host(p.listen);
 	let url = 'http://' + host + ':' + p.port + path;
 	let cmd = 'curl -sS --connect-timeout 3 --max-time 10 -X ' + method;
 	if (length(p.secret)) cmd += ' -H ' + sh_quote('Authorization: Bearer ' + p.secret);

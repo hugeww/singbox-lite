@@ -720,6 +720,9 @@ msgstr ""
 msgid "below 1.14.4"
 msgstr ""
 
+msgid "Node status is unavailable, so egress groups that have no members may still be listed."
+msgstr ""
+
 msgid "not installed"
 msgstr ""
 
@@ -729,5 +732,11 @@ msgstr ""
 msgid "sing-box Lite"
 msgstr ""
 
+msgid "unavailable"
+msgstr ""
+
 msgid "yq"
+msgstr ""
+
+msgid "legacy id"
 msgstr ""

@@ -1,7 +1,10 @@
 'use strict';
 
-import { trim, split_lines, split_csv, file_exists, read_text, write_text, mkdir_p, shell_http_get, PATH, log_app, run_capture, sh_quote } from 'sbx_common';
-import { unlink, rename, stat } from 'fs';
+import { trim, split_lines, split_csv, file_exists, mkdir_p, shell_http_get, PATH, run_capture } from 'sbx_common';
+import { unlink, rename, readfile, stat } from 'fs';
+
+const MAX_RULESET_BYTES = 16 * 1024 * 1024;
+const MIN_RULESET_BYTES = 16;
 
 const BUILTIN = {
 	builtin_cn_ai: {
@@ -163,6 +166,19 @@ function resolve_rulesets(cfg) {
 	return result;
 }
 
+/*
+ * 最小完整性校验，不依赖 sing-box 二进制：.srs 是二进制规则集，至少要比
+ * 一个空响应大，且必须以 "SRS" magic 开头。这样下载到的 HTML 错误页或
+ * 截断内容不会被 rename 成正式规则集，旧文件保持可用。
+ */
+function ruleset_file_valid(path) {
+	let st = stat(path);
+	if (st == null || st.size <= MIN_RULESET_BYTES) return false;
+	let magic = '';
+	try { magic = readfile(path, 3); } catch (e) { magic = ''; }
+	return magic == 'SRS';
+}
+
 function update_ruleset(cfg, id) {
 	let rs = null;
 	for (let item in cfg.rulesets)
@@ -174,16 +190,19 @@ function update_ruleset(cfg, id) {
 	mkdir_p(PATH.rulesets_dir);
 	let out = PATH.rulesets_dir + '/.' + id + '.srs.tmp';
 	let hdr = PATH.run_dir + '/' + id + '.hdr';
-	let r = shell_http_get(rs.url, out, hdr, 'sing-box/1.14', 120);
+	let r = shell_http_get(rs.url, out, hdr, 'sing-box/1.14', 120, MAX_RULESET_BYTES);
 	if (!r.ok || trim(r.out) != '200') {
+		let code = trim(r.out);
 		try { unlink(out); } catch (e) {}
-		return { ok: false, error: '下载失败：' + trim(r.out) };
+		if (code == '200')
+			return { ok: false, error: '下载失败：内容超过 16MB 限制' };
+		return { ok: false, error: '下载失败：HTTP ' + code };
+	}
+	if (!ruleset_file_valid(out)) {
+		try { unlink(out); } catch (e) {}
+		return { ok: false, error: '下载内容不是有效的 .srs 规则集（旧文件已保留）' };
 	}
 	let st = stat(out);
-	if (!st || !st.size) {
-		try { unlink(out); } catch (e) {}
-		return { ok: false, error: '下载内容为空' };
-	}
 	if (rename(out, PATH.rulesets_dir + '/' + id + '.srs') !== true)
 		return { ok: false, error: '保存规则集失败' };
 	return { ok: true, size: st.size };
@@ -202,9 +221,8 @@ function update_builtin_rulesets(mirror) {
 		let url = prefix + 'https://raw.githubusercontent.com/SagerNet/' + repo + '/rule-set/' + f;
 		let out = PATH.rulesets_dir + '/' + f;
 		let tmp = out + '.tmp';
-		let r = shell_http_get(url, tmp, PATH.run_dir + '/ruleset.hdr', 'sing-box/1.14', 120);
-		let st = stat(tmp);
-		if (!r.ok || trim(r.out) != '200' || !st || !st.size) {
+		let r = shell_http_get(url, tmp, PATH.run_dir + '/ruleset.hdr', 'sing-box/1.14', 120, MAX_RULESET_BYTES);
+		if (!r.ok || trim(r.out) != '200' || !ruleset_file_valid(tmp)) {
 			try { unlink(tmp); } catch (e) {}
 			push(failed, f);
 			continue;
@@ -214,13 +232,4 @@ function update_builtin_rulesets(mirror) {
 	return { ok: length(failed) == 0, updated: updated, failed: failed };
 }
 
-function ruleset_files_for_validation(cfg) {
-	let result = resolve_rulesets(cfg);
-	let files = [];
-	for (let rule in result.rules)
-		for (let f in rule.files)
-			push(files, f.path);
-	return files;
-}
-
-export { BUILTIN, rule_set_tag, resolve_rulesets, update_ruleset, update_builtin_rulesets, ruleset_files_for_validation };
+export { BUILTIN, rule_set_tag, resolve_rulesets, update_ruleset, update_builtin_rulesets };

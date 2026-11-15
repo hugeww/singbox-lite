@@ -203,51 +203,90 @@ function update_core(cfg, opts) {
 		}
 	}
 	mkdir_p(dirname(PATH.core));
-	if (file_exists(PATH.core)) {
-		try { unlink(PATH.core_bak); } catch (e) {}
-		rename(PATH.core, PATH.core_bak);
-	}
+	let core_meta_bak = PATH.core_meta + '.bak';
+	let old_meta = read_json(PATH.core_meta, null);
 	write_status('installing', { message: '安装 ' + v });
+	/* Stage next to the live core and validate the staged copy before the old
+	   binary is moved away. A failed copy must never leave the system without
+	   an executable core. */
 	let staged = PATH.core + '.new';
 	try { unlink(staged); } catch (e) {}
 	if (!write_binary(staged, new_bin)) {
+		try { unlink(staged); } catch (e) {}
 		write_status('error', { error: '写入核心失败' });
 		return { ok: false, error: '写入核心失败' };
 	}
 	chmod(staged, 493);
-	if (rename(staged, PATH.core) !== true) {
-		write_status('error', { error: '替换核心失败' });
-		return { ok: false, error: '替换核心失败' };
+	let staged_stat = stat(staged);
+	if (!staged_stat || !staged_stat.size || !core_version(staged)) {
+		try { unlink(staged); } catch (e) {}
+		write_status('error', { error: '新核心写入后不可用' });
+		return { ok: false, error: '新核心写入后不可用' };
 	}
-	write_json(PATH.core_meta, {
-		version: v, asset: asset, tag: tag, source: dl.url,
-		installed_at: now_string(), size: st.size
-	}, 384);
+	let had_old = file_exists(PATH.core);
+	if (had_old) {
+		try { unlink(PATH.core_bak); } catch (e) {}
+		if (rename(PATH.core, PATH.core_bak) !== true) {
+			try { unlink(staged); } catch (e) {}
+			write_status('error', { error: '备份旧核心失败' });
+			return { ok: false, error: '备份旧核心失败' };
+		}
+	}
+	if (rename(staged, PATH.core) !== true) {
+		let restored = false;
+		if (had_old && file_exists(PATH.core_bak) && !file_exists(PATH.core))
+			restored = rename(PATH.core_bak, PATH.core) === true;
+		try { unlink(staged); } catch (e) {}
+		let msg = restored ? '替换核心失败，已恢复旧核心' : '替换核心失败';
+		write_status('error', { error: msg });
+		return { ok: false, error: msg };
+	}
 	system(['rm', '-rf', tmp_dir]);
 	try { unlink(tmp_tar); } catch (e) {}
 	if (service_running()) {
 		write_status('restarting', { version: v });
 		if (!restart_service()) {
 			write_status('rolling-back', { version: v });
-			if (file_exists(PATH.core_bak)) {
-				try { unlink(PATH.core); } catch (e) {}
-				rename(PATH.core_bak, PATH.core);
-				restart_service();
-			}
-			write_status('error', { error: '新核心启动失败，已回滚' });
-			return { ok: false, error: '新核心启动失败，已回滚' };
+			let restored = false;
+			if (file_exists(PATH.core_bak))
+				restored = rename(PATH.core_bak, PATH.core) === true; /* atomic replace, no unlink window */
+			let back_running = restored ? restart_service() : false;
+			let msg = back_running ? '新核心启动失败，已回滚' : (restored ? '新核心启动失败，回滚后仍无法启动' : '新核心启动失败，且没有可回滚的核心');
+			write_status('error', { error: msg });
+			return { ok: false, error: msg };
 		}
 	}
+	/* Write metadata only after the new core is actually in place and (when
+	   running) the service came back. Keep the previous metadata next to the
+	   .bak core so a later manual rollback restores a consistent version. */
+	if (old_meta != null)
+		write_json(core_meta_bak, old_meta, 384);
+	else {
+		try { unlink(core_meta_bak); } catch (e) {}
+	}
+	write_json(PATH.core_meta, {
+		version: v, asset: asset, tag: tag, source: dl.url,
+		installed_at: now_string(), size: st.size
+	}, 384);
 	write_status('done', { version: v, asset: asset });
 	return { ok: true, version: v, asset: asset };
 }
 
 function rollback_core() {
 	if (!file_exists(PATH.core_bak)) return { ok: false, error: '没有可回滚的核心' };
-	try { unlink(PATH.core); } catch (e) {}
+	/* Validate the backup before consuming it, then replace the current core
+	   with a single atomic rename (no delete-then-rename window). */
+	let v = core_version(PATH.core_bak);
+	if (!v) return { ok: false, error: '备份的核心不可执行，未回滚' };
 	if (rename(PATH.core_bak, PATH.core) !== true) return { ok: false, error: '回滚失败' };
-	let v = core_version(PATH.core);
-	if (service_running()) restart_service();
+	let meta_bak = PATH.core_meta + '.bak';
+	if (file_exists(meta_bak)) {
+		try { rename(meta_bak, PATH.core_meta); } catch (e) {}
+	} else {
+		write_json(PATH.core_meta, { version: v, source: 'core-rollback', installed_at: now_string() }, 384);
+	}
+	if (service_running() && !restart_service())
+		return { ok: false, error: '核心已回滚，但服务重启失败', version: v };
 	return { ok: true, version: v };
 }
 
