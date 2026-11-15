@@ -2,7 +2,7 @@
 
 import { readfile, writefile, rename, chmod, mkdir, stat, access, popen, unlink, dirname } from 'fs';
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
 
 const PATH = {
 	etc: getenv('SINGBOX_LITE_ETC') || '/etc/singbox-lite',

@@ -90,10 +90,10 @@ Plain pushes never build. A build runs only when it is requested: manually (Acti
 Every build carries a new version. `scripts/bump-version.sh` keeps `PKG_VERSION`/`PKG_RELEASE` in both package Makefiles and the backend `VERSION` in sync:
 
 ```sh
-scripts/bump-version.sh patch   # 0.1.1 -> 0.1.2
-git commit -am "release: 0.1.2"
-git tag v0.1.2
-git push origin main v0.1.2
+scripts/bump-version.sh patch   # 0.1.2 -> 0.1.3
+git commit -am "release: 0.1.3"
+git tag v0.1.3
+git push origin main v0.1.3
 ```
 
 The workflow fails when the tag does not match `PKG_VERSION`, and a manual build without an explicit version uses the next patch after the latest tag.

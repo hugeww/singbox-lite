@@ -153,7 +153,7 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 每次构建都带一个新版本号。版本由 `scripts/bump-version.sh` 统一维护，两个包的 `PKG_VERSION`、`PKG_RELEASE` 和后端 `common.uc` 的 `VERSION` 会一起更新：
 
 ```sh
-scripts/bump-version.sh          # 0.1.1 → 0.1.2（默认 patch）
+scripts/bump-version.sh          # 0.1.2 → 0.1.3（默认 patch）
 scripts/bump-version.sh minor    # 0.1.1 → 0.2.0
 scripts/bump-version.sh 0.2.3    # 指定版本
 ```
@@ -162,9 +162,9 @@ scripts/bump-version.sh 0.2.3    # 指定版本
 
 ```sh
 scripts/bump-version.sh patch
-git commit -am "release: 0.1.2"
-git tag v0.1.2
-git push origin main v0.1.2
+git commit -am "release: 0.1.3"
+git tag v0.1.3
+git push origin main v0.1.3
 ```
 
 标签与 `singbox-lite/Makefile` 的 `PKG_VERSION` 不一致时 workflow 会直接失败，避免打错版本；手动构建不填版本号时，会在最新标签（没有标签则用 Makefile 当前版本）的基础上自动 +1 patch。
