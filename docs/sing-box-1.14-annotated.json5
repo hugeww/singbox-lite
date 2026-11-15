@@ -1,0 +1,816 @@
+// =============================================================================
+// sing-box 1.14.4 配置模板（JSON5 + 中文注释）
+// =============================================================================
+//
+// 这是什么
+//   一份可以对照阅读的配置：出现的每个 key 都解释了作用、取值和默认值；
+//   注释掉的段落是可选的顶层块或其它协议模板，按需取消注释。
+//
+// 怎么用
+//   1. sing-box 只认严格 JSON，不认 JSON5 的注释和尾逗号。本文件只加了注释，
+//      仍保持标准 JSON 的引号与逗号，去掉注释后就是合法 JSON。
+//   2. 编辑时用支持 JSON5 的编辑器（VS Code 默认支持）获得高亮和补全；
+//      发布前用 JSON5→JSON 工具转换，例如：
+//         npx json5 -o config.json docs/sing-box-1.14-annotated.json5
+//      再执行：
+//         sing-box check -c config.json
+//   3. 模板里的域名、端口、密码、路径都是示例，替换后再用。
+//   4. 注释里的「常用」是实际部署里最常见的取值，不是 Schema 的硬性限制。
+//
+// 版本
+//   对应 sing-box 1.14.4（仓库内 dist/sing-box-1.14.4-linux-amd64-musl）。
+//   $schema 指向 docs/schema-1.14.4.json；部署到 /etc 后要改成绝对路径或删掉。
+// =============================================================================
+
+{
+  // JSON Schema 的 URI，只给编辑器补全/校验用，sing-box 运行时忽略。
+  "$schema": "./schema-1.14.4.json",
+
+  // ===========================================================================
+  // 1. log：日志
+  // ===========================================================================
+  "log": {
+    // 完全关闭日志；默认 false，常用 false
+    "disabled": false,
+
+    // trace | debug | info | warn | warning | error | fatal | panic
+    // 常用 info；排障时 debug；只记错误用 warn/error
+    "level": "info",
+
+    // 日志文件路径；留空表示 stderr（常用留空，交给 procd/终端收集）
+    // 要独立文件时常用 "/var/log/sing-box.log"
+    // "output": "/var/log/sing-box.log",
+
+    // 每行是否带时间戳；常用 true
+    "timestamp": true
+  },
+
+  // ===========================================================================
+  // 2. dns：DNS 服务器 + 查询分流
+  // ===========================================================================
+  //
+  // servers[] 支持 15 种 type：
+  //   local       系统本地解析器（getaddrinfo/systemd-resolved）
+  //   hosts       静态 hosts，按域名直接返回地址
+  //   tcp         DNS over TCP
+  //   udp         DNS over UDP
+  //   tls         DNS over TLS（DoT），默认 853
+  //   quic        DNS over QUIC（DoQ），默认 853
+  //   https       DNS over HTTPS（DoH），默认 443 + /dns-query
+  //   h3          DNS over HTTP/3（DoH3）
+  //   dhcp        从 DHCP 租约/邻居表取 DNS
+  //   mdns        多播 DNS（.local）
+  //   fakeip      FakeIP 地址池
+  //   tailscale   用 Tailscale endpoint 的 DNS
+  //   openconnect 用 OpenConnect endpoint 下发的 DNS
+  //   openvpn     用 OpenVPN endpoint 下发的 DNS
+  //   resolved    对接 systemd-resolved
+  //
+  // rules[] 默认动作是 route（把查询交给 server 指定的 DNS 服务器）；
+  //   还可以用 action=evaluate / respond / route-options / reject / predefined。
+  //
+  // 常用公共 DNS：
+  //   国内 223.5.5.5（阿里）/ 119.29.29.29（腾讯）/ 180.76.76.76（百度）
+  //   国外 1.1.1.1（Cloudflare）/ 8.8.8.8（Google）/ 9.9.9.9（Quad9）
+  //   DoH 主机名 cloudflare-dns.com / dns.google / dns.quad9.net / dns.alidns.com
+  "dns": {
+    "servers": [
+      // 国内直连 DNS：UDP 223.5.5.5，不走代理。
+      // type=udp 时 server_port 默认 53；server 可以是域名，但那样必须配 domain_resolver。
+      {
+        "type": "udp",
+        "tag": "dns-direct",
+        "server": "223.5.5.5",
+        "detour": "direct"        // 走哪个出站；direct = 直连
+      },
+
+      // 代理侧 DoH：1.1.1.1:443，TLS SNI=cloudflare-dns.com。
+      // 服务器地址是 IP，tls.server_name 用来校验证书。
+      {
+        "type": "https",
+        "tag": "dns-proxy",
+        "server": "1.1.1.1",
+        "server_port": 443,       // 默认 443
+        "path": "/dns-query",     // 默认 /dns-query
+        "detour": "default",      // 走默认出口组
+        "domain_resolver": "dns-direct",
+        "tls": {
+          "enabled": true,
+          "server_name": "cloudflare-dns.com"
+          // insecure: true 会接受任意证书（有中间人风险，不要随便开）
+          // alpn: ["h2", "http/1.1"]
+          // min_version / max_version: "1.2" / "1.3"
+        }
+      }
+
+      // 其它服务器写法（取消注释即可）：
+      //
+      // FakeIP：给域名分配假地址，由路由层反查真实域名。
+      // { "type": "fakeip", "tag": "fakeip", "inet4_range": "198.18.0.0/15",
+      //   "inet6_range": "fc00::/18" },
+      //
+      // 静态 hosts：
+      // { "type": "hosts", "tag": "hosts",
+      //   "predefined": { "router.lan": "192.168.1.1", "nas.lan": ["192.168.1.2"] } },
+      //
+      // DoT：
+      // { "type": "tls", "tag": "dot", "server": "1.1.1.1", "server_port": 853 },
+      //
+      // DoQ：
+      // { "type": "quic", "tag": "doq", "server": "1.1.1.1", "server_port": 853 },
+      //
+      // DHCP（从租约取 DNS）：
+      // { "type": "dhcp", "tag": "dhcp", "interface": "br-lan" },
+      //
+      // 系统本地解析：
+      // { "type": "local", "tag": "local", "prefer_go": true },
+      //
+      // 对接 systemd-resolved（需 services 里再开一个 resolved 服务）：
+      // { "type": "resolved", "tag": "resolved", "service": "resolved" }
+    ],
+
+    "rules": [
+      // 局域网后缀走直连 DNS。
+      // 匹配字段与路由规则类似：domain / domain_suffix / domain_keyword /
+      // domain_regex / query_type / query_dnssec / source_ip_cidr / ip_cidr /
+      // port / process_name / rule_set / invert 等。
+      // 同一字段的数组是「或」，字段之间是「与」。
+      { "domain_suffix": [".lan", ".local", ".home.arpa"], "server": "dns-direct" },
+
+      // 命中 geosite-cn 规则集的域名走直连 DNS。
+      { "rule_set": ["geosite-cn"], "server": "dns-direct" }
+
+      // 进阶：先查一次并缓存响应，供后面 match_response 用：
+      // { "action": "evaluate", "server": "dns-proxy", "tag": "probe" },
+      // { "match_response": true, "response_rcode": "NXDOMAIN", "action": "reject" }
+    ],
+
+    // 未命中任何规则时使用的 DNS 服务器 tag；常用 dns-proxy（走代理）或 dns-direct（全直连）。
+    "final": "dns-proxy",
+
+    // as_is | prefer_ipv4 | prefer_ipv6 | ipv4_only | ipv6_only；常用 prefer_ipv4
+    "strategy": "prefer_ipv4",
+
+    // 每次查询默认超时，默认 10s；常用 10s，移动网络可 5s。
+    // "timeout": "10s",
+
+    // 缓存开关；optimistic 不能与 disable_cache/disable_expire 同时用。
+    // "disable_cache": false,
+    // "disable_expire": false,
+
+    // LRU 缓存容量；小于 1024 的值会被忽略；常用 4096 或 8192。
+    "cache_capacity": 8192
+
+    // 乐观缓存：先返回过期结果，同时后台刷新。true 等价 { enabled: true, timeout: "3d" }。
+    // 常用 false；移动网络/弱网可设 true。
+    // "optimistic": true,
+
+    // 默认 EDNS Client Subnet，可被单条规则覆盖；常用留空，需要 ECS 时填 1.2.3.0/24。
+    // "client_subnet": "1.2.3.0/24",
+
+    // 把解析结果的反向映射（IP→域名）写回，路由/FakeIP 会用到；常用 false。
+    // "reverse_mapping": false
+  },
+
+  // ===========================================================================
+  // 3. ntp：时间同步（默认关闭）
+  // ===========================================================================
+  // "ntp": {
+  //   "enabled": true,
+  //   "server": "time.apple.com",     // 必填；常用 time.apple.com / pool.ntp.org / ntp.aliyun.com
+  //   "server_port": 123,             // 默认 123
+  //   "interval": "30m",              // 默认 30m；常用 30m / 1h
+  //   "write_to_system": false,       // 写回系统时钟；路由器常用 false（系统自己同步）
+  //   "detour": "direct"              // 走哪个出站；设置后其它拨号字段失效
+  // },
+
+  // ===========================================================================
+  // 4. certificate：全局根证书库
+  // ===========================================================================
+  // "certificate": {
+  //   // system（默认）| mozilla | chrome | none；常用 system
+  //   "store": "system",
+  //   // 额外信任的证书（PEM 行数组）/ 文件路径 / 目录
+  //   "certificate": [],
+  //   "certificate_path": ["/etc/ssl/certs/ca-certificates.crt"],
+  //   "certificate_directory_path": ["/etc/ssl/certs"]
+  // },
+
+  // ===========================================================================
+  // 5. certificate_providers：自动签发/加载证书
+  // ===========================================================================
+  // 供各处 tls.certificate_provider 按 tag 引用。type: acme | cloudflare-origin-ca | tailscale
+  //
+  // "certificate_providers": [
+  //   {
+  //     "type": "acme",
+  //     "tag": "le",
+  //     "domain": ["example.com"],
+  //     "email": "you@example.com",
+  //     "provider": "letsencrypt",       // 常用 letsencrypt；ZeroSSL 用 zerossl
+  //     "data_directory": "/etc/sing-box/acme",   // 常用 /etc/sing-box/acme
+  //     "key_type": "p256"               // ed25519|p256|p384|rsa2048|rsa4096；常用 p256
+  //   }
+  // ],
+
+  // ===========================================================================
+  // 6. http_clients：可复用的 HTTP 客户端
+  // ===========================================================================
+  // 远程规则集、ACME 等用 http_client 字段按 tag 引用。字段含拨号/TLS/HTTP2/QUIC。
+  //
+  // "http_clients": [
+  //   {
+  //     "tag": "http-direct",
+  //     "engine": "go",                  // go | apple
+  //     "version": 2,                    // 0|1|2|3，默认 2；常用 2，强制 HTTP/3 用 3
+  //     "detour": "direct",
+  //     "tls": { "enabled": true, "server_name": "example.com" }
+  //   }
+  // ],
+
+  // ===========================================================================
+  // 7. network_namespaces：Linux 网络命名空间
+  // ===========================================================================
+  // 定义后可在监听/拨号字段里用 "netns": "ns1" 引用。
+  //
+  // "network_namespaces": [
+  //   { "type": "default", "tag": "ns1", "path": "/var/run/netns/ns1" },   // 常用路径
+  //   { "type": "unshare", "tag": "ns2", "pid_file": "/run/sing-box-ns2.pid" }
+  // ],
+
+  // ===========================================================================
+  // 8. endpoints：接口型组件（WireGuard / Tailscale / OpenVPN / OpenConnect）
+  // ===========================================================================
+  // 不是普通出站，而是提供三层接口；tag 可被 route 规则当 outbound 引用。
+  //
+  // "endpoints": [
+  //   {
+  //     "type": "wireguard",
+  //     "tag": "wg0",
+  //     "address": ["10.0.0.2/32"],        // 常用 10.0.0.2/32 或 10.8.0.2/32
+  //     "private_key": "BASE64_PRIVATE_KEY",
+  //     "peers": [
+  //       {
+  //         "address": "203.0.113.10",   // 注意：是 address/port，不是 server/server_port
+  //         "port": 51820,                 // 常用 51820；WARP 用 2408/500/1701/4500
+  //         "public_key": "BASE64_PUBLIC_KEY",
+  //         "allowed_ips": ["0.0.0.0/0", "::/0"],   // 常用全量
+  //         "persistent_keepalive_interval": 25   // 常用 25 秒
+  //       }
+  //     ]
+  //   },
+  //
+  //   // Tailscale 节点：state_directory 持久化登录态
+  //   { "type": "tailscale", "tag": "ts", "state_directory": "/etc/sing-box/tailscale",   // 常用目录
+  //     "auth_key": "tskey-auth-...", "accept_routes": true },
+  //
+  //   // OpenVPN 客户端（1.14+）
+  //   { "type": "openvpn-client", "tag": "ovpn",
+  //     "server": "vpn.example.com", "server_port": 1194,   // 常用 1194，也可 443
+  //     "username": "u", "password": "p",
+  //     "tls": { "server_name": "vpn.example.com", "certificate_path": ["ca.crt"] } },
+  //
+  //   // OpenConnect（AnyConnect/GlobalProtect 等）
+  //   { "type": "openconnect", "tag": "oc", "server": "vpn.example.com",
+  //     "flavor": "anyconnect", "username": "u", "password": "p" }
+  // ],
+
+  // ===========================================================================
+  // 9. inbounds：入站
+  // ===========================================================================
+  // type 可选：
+  //   anytls cloudflared direct http hysteria hysteria2 mixed naive redirect
+  //   shadowsocks shadowtls snell socks tproxy trojan tuic tun vless vmess
+  // 除 tun 外都支持通用监听字段：
+  //   listen / listen_port / bind_interface / routing_mark / reuse_addr / netns /
+  //   tcp_fast_open / tcp_multi_path / disable_tcp_keep_alive / tcp_keep_alive /
+  //   tcp_keep_alive_interval / udp_fragment / udp_timeout / detour
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+
+      // 必填：tun 接口的 IPv4/IPv6 前缀；常用 172.19.0.1/30（本项目）或 172.18.0.1/30。
+      "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
+
+      // 最大传输单元；常用 9000；兼容性差/家宽 PPPoE 可用 1500。
+      "mtu": 9000,
+
+      // 安装到 tun 的默认路由（需要 root/特权）；常用 true。
+      "auto_route": true,
+
+      // 用 nftables 接管本机与 LAN 的转发流量；需要 nfqueue 内核模块；常用 true。
+      // 与 route.default_mark、出站 routing_mark 冲突。
+      "auto_redirect": true,
+
+      // 严格路由：让不支持的网络不可达等；常用 false（本项目也关闭）。
+      "strict_route": false,
+
+      // disabled | native | hijack；常用 hijack。
+      // hijack：把发往 TUN 的 53 端口 DNS 劫持给内部 DNS 模块。
+      "dns_mode": "hijack",
+
+      // 命中的目标 IP 在 nftables 预匹配层直接绕过 TUN（国内 IP 直连）。
+      // 引用 route.rule_set 里的 tag；常用 ["geoip-cn"]；未启用 auto_redirect 时无效。
+      "route_exclude_address_set": ["geoip-cn"]
+
+      // 其它常用字段：
+      // interface_name: "tun0"        // 常用 tun0
+      // stack: "system"               // system|gvisor|mixed；常用 system（1.15 起废弃）
+      // include_interface / exclude_interface: ["br-lan"]
+      // include_uid / exclude_uid / include_uid_range / exclude_uid_range
+      // include_package / exclude_package（Android 应用包名）
+      // include_mac_address / exclude_mac_address（1.14+）
+      // platform.http_proxy: { enabled: true, server: "127.0.0.1", server_port: 8080 }
+    }
+
+    // ---------------------------------------------------------------------
+    // 其它入站模板（取消注释，注意与前一项之间的逗号）
+    // ---------------------------------------------------------------------
+    //
+    // 局域网混合代理（调试用；生产建议只开 tun；常用端口 7890 或 1080）：
+    // { "type": "mixed", "tag": "mixed-in", "listen": "0.0.0.0", "listen_port": 7890,
+    //   "users": [{ "username": "u", "password": "p" }],
+    //   "set_system_proxy": false },
+    //
+    // HTTP 代理（常用端口 8080）：
+    // { "type": "http", "tag": "http-in", "listen": "0.0.0.0", "listen_port": 8080,
+    //   "users": [{ "username": "u", "password": "p" }],
+    //   "tls": { "enabled": false } },
+    //
+    // SOCKS（常用端口 1080）：
+    // { "type": "socks", "tag": "socks-in", "listen": "0.0.0.0", "listen_port": 1080,
+    //   "users": [{ "username": "u", "password": "p" }] },
+    //
+    // Linux redirect（只接管 TCP，nftables REDIRECT；常用端口 12345）：
+    // { "type": "redirect", "tag": "redirect-in", "listen": "::", "listen_port": 12345 },
+    //
+    // Linux TProxy（TCP+UDP；常用端口 12345）：
+    // { "type": "tproxy", "tag": "tproxy-in", "listen": "::", "listen_port": 12345,
+    //   "network": ["tcp", "udp"] },
+    //
+    // Shadowsocks 服务端（常用端口 8388；method 常用 2022-blake3-aes-128-gcm）：
+    // { "type": "shadowsocks", "tag": "ss-in", "listen": "0.0.0.0", "listen_port": 8388,
+    //   "method": "2022-blake3-aes-128-gcm", "password": "BASE64_PSK",
+    //   "users": [{ "name": "u1", "password": "BASE64_PSK" }], "managed": false },
+    //
+    // VLESS 服务端（常用端口 443；flow 常用 xtls-rprx-vision）：
+    // { "type": "vless", "tag": "vless-in", "listen": "0.0.0.0", "listen_port": 443,
+    //   "users": [{ "name": "u1", "uuid": "UUID", "flow": "xtls-rprx-vision" }],
+    //   "tls": { "enabled": true, "server_name": "example.com",
+    //            "certificate_path": ["/etc/ssl/fullchain.pem"],
+    //            "key_path": "/etc/ssl/key.pem" } },
+    //
+    // VMess 服务端（常用端口 443；alterId 常用 0）：
+    // { "type": "vmess", "tag": "vmess-in", "listen": "0.0.0.0", "listen_port": 443,
+    //   "users": [{ "name": "u1", "uuid": "UUID", "alterId": 0 }],
+    //   "tls": { "enabled": true, "certificate_path": [], "key_path": "" } },
+    //
+    // Trojan 服务端（TLS + 可选 fallback；常用端口 443）：
+    // { "type": "trojan", "tag": "trojan-in", "listen": "0.0.0.0", "listen_port": 443,
+    //   "users": [{ "name": "u1", "password": "PASSWORD" }],
+    //   "tls": { "enabled": true, "certificate_path": [], "key_path": "" },
+    //   "fallback": { "server": "127.0.0.1", "server_port": 80 } },
+    //
+    // Hysteria2 服务端（常用端口 443；带宽常用 up/down = 100/500 Mbps）：
+    // { "type": "hysteria2", "tag": "hy2-in", "listen": "::", "listen_port": 443,
+    //   "up_mbps": 100, "down_mbps": 500,
+    //   "obfs": { "type": "salamander", "password": "OBFS_PASSWORD" },
+    //   "users": [{ "name": "u1", "password": "PASSWORD" }],
+    //   "tls": { "enabled": true, "certificate_path": [], "key_path": "" } },
+    //
+    // TUIC 服务端（常用端口 443；拥塞控制常用 bbr）：
+    // { "type": "tuic", "tag": "tuic-in", "listen": "::", "listen_port": 443,
+    //   "users": [{ "name": "u1", "uuid": "UUID", "password": "PASSWORD" }],
+    //   "congestion_control": "bbr",
+    //   "tls": { "enabled": true, "certificate_path": [], "key_path": "" } },
+    //
+    // AnyTLS 服务端（常用端口 443）：
+    // { "type": "anytls", "tag": "anytls-in", "listen": "0.0.0.0", "listen_port": 443,
+    //   "users": [{ "name": "u1", "password": "PASSWORD" }],
+    //   "tls": { "enabled": true, "certificate_path": [], "key_path": "" } },
+    //
+    // NaiveProxy 服务端（常用端口 443）：
+    // { "type": "naive", "tag": "naive-in", "listen": "0.0.0.0", "listen_port": 443,
+    //   "users": [{ "username": "u", "password": "p" }],
+    //   "tls": { "enabled": true, "certificate_path": [], "key_path": "" } },
+    //
+    // ShadowTLS 服务端（常用端口 443；握手常用 www.google.com:443）：
+    // { "type": "shadowtls", "tag": "stls-in", "listen": "0.0.0.0", "listen_port": 443,
+    //   "version": 3, "password": "PASSWORD",
+    //   "handshake": { "server": "www.google.com", "server_port": 443 },
+    //   "strict_mode": true },
+    //
+    // Snell 服务端（必须写 version：5 或 6；常用端口 443；obfs_mode 常用 http）：
+    // { "type": "snell", "tag": "snell-in", "listen": "0.0.0.0", "listen_port": 443,
+    //   "version": 5, "psk": "PSK", "users": [{ "name": "u1", "userkey": "KEY" }],
+    //   "obfs_mode": "http" },
+    //
+    // Direct 隧道（把监听端口流量转到固定目标；常用端口 9000）：
+    // { "type": "direct", "tag": "direct-in", "listen": "0.0.0.0", "listen_port": 9000,
+    //   "override_address": "10.0.0.5", "override_port": 9000 },
+    //
+    // Cloudflare Tunnel 入口：
+    // { "type": "cloudflared", "tag": "cf-in", "token": "TUNNEL_TOKEN" }
+  ],
+
+  // ===========================================================================
+  // 10. outbounds：出站
+  // ===========================================================================
+  // type 可选：
+  //   anytls block bridge direct http hysteria hysteria2 naive selector
+  //   shadowsocks shadowtls snell socks ssh tor trojan tuic urltest vless vmess
+  // 注意：1.13 起 wireguard、dns 出站已移除；WireGuard 改用 endpoints。
+  // 所有出站都支持通用拨号字段（见文件末尾速查）。
+  "outbounds": [
+    // 手动选择组：在 auto/direct 之间切换，默认 auto。
+    // 运行时可通过 Clash API 切换成员。
+    {
+      "type": "selector",
+      "tag": "default",
+      "outbounds": ["auto", "direct"],
+      "default": "auto",                  // 常用 auto（自动组）或具体国家组
+      "interrupt_exist_connections": false   // 切换时是否断开已有连接
+    },
+
+    // 自动测速组：周期性访问 url，选延迟最低的成员。
+    {
+      "type": "urltest",
+      "tag": "auto",
+      "outbounds": ["direct"],               // 成员 tag 列表
+      "url": "https://www.gstatic.com/generate_204",   // 常用；备选 https://cp.cloudflare.com/generate_204
+      "interval": "10m",                     // 测速间隔；常用 10m / 5m
+      "tolerance": 50,                       // 切换容差（毫秒）；常用 50
+      "interrupt_exist_connections": false
+    },
+
+    // 直连；可加 bind_interface / inet4_bind_address / routing_mark 等。
+    { "type": "direct", "tag": "direct" },
+
+    // 黑洞：命中后立即失败。
+    { "type": "block", "tag": "block" }
+
+    // ---------------------------------------------------------------------
+    // 其它出站模板（取消注释，注意逗号）
+    // ---------------------------------------------------------------------
+    //
+    // Shadowsocks（常用端口 8388；method 常用 2022-blake3-aes-128-gcm）：
+    // { "type": "shadowsocks", "tag": "ss", "server": "1.2.3.4", "server_port": 8388,
+    //   "method": "2022-blake3-aes-128-gcm", "password": "BASE64_PSK",
+    //   "plugin": "obfs-local", "plugin_opts": "obfs=http;obfs-host=www.bing.com" },
+    //
+    // VMess（常用端口 443；security 常用 auto，alterId 常用 0）：
+    // { "type": "vmess", "tag": "vmess", "server": "example.com", "server_port": 443,
+    //   "uuid": "UUID", "security": "auto", "alter_id": 0,
+    //   "tls": { "enabled": true, "server_name": "example.com" },
+    //   "transport": { "type": "ws", "path": "/ws", "headers": { "Host": "example.com" } } },
+    //
+    // VLESS（含 REALITY 示例；常用端口 443；flow 常用 xtls-rprx-vision，指纹常用 chrome）：
+    // { "type": "vless", "tag": "vless", "server": "example.com", "server_port": 443,
+    //   "uuid": "UUID", "flow": "xtls-rprx-vision",
+    //   "tls": { "enabled": true, "server_name": "www.microsoft.com",
+    //            "utls": { "enabled": true, "fingerprint": "chrome" },
+    //            "reality": { "enabled": true, "public_key": "PUBLIC_KEY",
+    //                         "short_id": "SHORT_ID" } } },
+    //
+    // Trojan（常用端口 443）：
+    // { "type": "trojan", "tag": "trojan", "server": "example.com", "server_port": 443,
+    //   "password": "PASSWORD", "tls": { "enabled": true, "server_name": "example.com" } },
+    //
+    // Hysteria2（常用端口 443；带宽常用 100/500 Mbps）：
+    // { "type": "hysteria2", "tag": "hy2", "server": "example.com", "server_port": 443,
+    //   "password": "PASSWORD", "up_mbps": 100, "down_mbps": 500,
+    //   "obfs": { "type": "salamander", "password": "OBFS" },
+    //   "tls": { "enabled": true, "server_name": "example.com" } },
+    //
+    // TUIC（常用端口 443；拥塞控制 bbr；UDP 中继 native）：
+    // { "type": "tuic", "tag": "tuic", "server": "example.com", "server_port": 443,
+    //   "uuid": "UUID", "password": "PASSWORD", "congestion_control": "bbr",
+    //   "udp_relay_mode": "native",
+    //   "tls": { "enabled": true, "server_name": "example.com" } },
+    //
+    // AnyTLS（常用端口 443）：
+    // { "type": "anytls", "tag": "anytls", "server": "example.com", "server_port": 443,
+    //   "password": "PASSWORD",
+    //   "tls": { "enabled": true, "server_name": "example.com" } },
+    //
+    // NaiveProxy（常用端口 443）：
+    // { "type": "naive", "tag": "naive", "server": "example.com", "server_port": 443,
+    //   "username": "u", "password": "p", "quic": false,
+    //   "tls": { "enabled": true, "server_name": "example.com" } },
+    //
+    // SOCKS（常用端口 1080）：
+    // { "type": "socks", "tag": "socks", "server": "127.0.0.1", "server_port": 1080,
+    //   "version": "5", "username": "u", "password": "p" },
+    //
+    // HTTP 代理（常用端口 8080）：
+    // { "type": "http", "tag": "http", "server": "127.0.0.1", "server_port": 8080,
+    //   "username": "u", "password": "p",
+    //   "tls": { "enabled": false } },
+    //
+    // SSH 隧道（常用端口 22）：
+    // { "type": "ssh", "tag": "ssh", "server": "example.com", "server_port": 22,
+    //   "user": "root", "password": "p" },
+    //
+    // Tor（调用外部 tor 进程；常用路径 /usr/bin/tor）：
+    // { "type": "tor", "tag": "tor", "executable_path": "/usr/bin/tor",
+    //   "data_directory": "/var/lib/tor" },
+    //
+    // Snell 客户端（必须写 version：4 或 6；常用端口 443；obfs_mode 常用 tls）：
+    // { "type": "snell", "tag": "snell", "server": "example.com", "server_port": 443,
+    //   "version": 4, "psk": "PSK", "userkey": "KEY", "obfs_mode": "tls" },
+    //
+    // ShadowTLS（常用端口 443）：
+    // { "type": "shadowtls", "tag": "stls", "server": "example.com", "server_port": 443,
+    //   "version": 3, "password": "PASSWORD",
+    //   "tls": { "enabled": true, "server_name": "www.google.com" } },
+    //
+    // L3 直连（TUN/endpoint 的三层流量从本机接口发出，需特权；常用 eth0/br-lan）：
+    // { "type": "bridge", "tag": "bridge", "interface": "eth0" }
+  ],
+
+  // ===========================================================================
+  // 11. route：路由规则、规则集、默认出口
+  // ===========================================================================
+  "route": {
+    "rules": [
+      // 常见顺序：sniff → hijack-dns → 私有地址直连 → 国内直连 → 其余走 final。
+      // 对连接做协议探测（TLS SNI / HTTP Host / QUIC 等）。
+      // 可写 sniffer: ["tls","http","quic"]、timeout: "300ms"；默认启用全部探测器。
+      { "action": "sniff" },
+
+      // DNS 查询交给内部 DNS 模块（配合 dns.servers 使用）。
+      { "protocol": "dns", "action": "hijack-dns" },
+
+      // 私有/保留地址直连，避免把 LAN 流量送进代理。
+      { "ip_is_private": true, "outbound": "direct" },
+
+      // 命中国内域名/国内 IP 规则集的流量直连。
+      { "rule_set": ["geosite-cn"], "outbound": "direct" },
+      { "rule_set": ["geoip-cn"], "outbound": "direct" }
+
+      // 其它匹配字段：
+      // inbound / network(tcp|udp|icmp) / ip_version(4|6) / auth_user /
+      // protocol / client / domain / domain_suffix / domain_keyword / domain_regex /
+      // source_ip_cidr / source_ip_is_private / ip_cidr / ip_is_private /
+      // source_port / source_port_range / port / port_range /
+      // process_name / process_path / process_path_regex / package_name /
+      // user / user_id / clash_mode / network_type / network_is_expensive /
+      // network_is_constrained / wifi_ssid / wifi_bssid / interface_address /
+      // network_interface_address / default_interface_address / source_mac_address /
+      // source_hostname / preferred_by / rule_set / rule_set_ip_cidr_match_source /
+      // invert
+      //
+      // 其它动作：
+      // { "action": "route", "outbound": "proxy" }                 // 默认动作
+      // { "action": "route-options", "override_address": "1.2.3.4" } // 只改连接选项
+      // { "action": "reject", "method": "drop" }                    // default|drop|reply
+      // { "action": "resolve", "server": "dns-direct" }             // 先解析域名
+      // { "action": "bypass" }                                      // 交还内核/原网络栈
+    ],
+
+    "rule_set": [
+      // inline：直接写无头规则，适合小列表/示例。
+      {
+        "type": "inline",
+        "tag": "geosite-cn",
+        "rules": [{ "domain_suffix": [".cn"] }]
+      },
+      {
+        "type": "inline",
+        "tag": "geoip-cn",
+        "rules": [{ "ip_cidr": ["1.2.3.0/24"] }]
+      }
+
+      // local：本地文件；.srs 用 format=binary，JSON 规则集用 format=source。
+      // 常用路径 /usr/share/singbox-lite/rulesets/*.srs（本项目内置规则集）。
+      // { "type": "local", "tag": "geosite-cn",
+      //   "format": "binary", "path": "/usr/share/singbox-lite/rulesets/geosite-cn.srs" },
+      //
+      // remote：远程下载并缓存；update_interval 常用 1d。
+      // { "type": "remote", "tag": "geosite-google", "format": "binary",
+      //   "url": "https://example.com/geosite-google.srs",
+      //   "initial_path": "/etc/sing-box/geosite-google.srs",
+      //   "update_interval": "1d", "http_client": "http-direct" }
+    ],
+
+    // 未命中任何规则时使用的出站 tag；常用 default。
+    "final": "default",
+
+    // 自动把出站绑定到默认网卡，防止 TUN 下路由环路；常用 true。
+    "auto_detect_interface": true,
+
+    // 出站解析域名时默认使用的 DNS 服务器；常用 dns-direct。
+    "default_domain_resolver": "dns-direct"
+
+    // 其它全局字段：
+    // default_interface: "eth0"                 // 与 auto_detect_interface 二选一
+    // default_mark: 0x2023                      // 出站默认路由标记；常用 0x2023 或留空
+    // default_network_strategy: "default"       // default|fallback|hybrid
+    // default_network_type: ["wifi","ethernet"]
+    // find_process: false                       // 无进程规则时也查找进程（输出日志）
+    // find_neighbor: false                      // 无邻居规则时也做邻居解析（1.14+）
+  },
+
+  // ===========================================================================
+  // 12. services：内置服务（按需开启；不需要就删掉）
+  // ===========================================================================
+  // "services": [
+  //   // sing-box API / dashboard：gRPC + gRPC-Web
+  //   { "type": "api", "tag": "api", "listen": "127.0.0.1", "listen_port": 9091,   // 常用 9091（Clash API 用 9090）
+  //     "secret": "CHANGE_ME", "dashboard": true },
+  //
+  //   // Tailscale DERP 中继
+  //   { "type": "derp", "tag": "derp", "listen": "0.0.0.0", "listen_port": 443,   // 常用 443
+  //     "tls": { "enabled": true, "certificate_path": [], "key_path": "" },
+  //     "config_path": "/etc/sing-box/derper.key" },
+  //
+  //   // 伪造的 systemd-resolved DBus 服务（配合 dns server type=resolved）
+  //   { "type": "resolved", "tag": "resolved", "listen": "127.0.0.53", "listen_port": 53 },   // 常用 53
+  //
+  //   // USB/IP 导出本机设备
+  //   { "type": "usbip-server", "tag": "usbip", "listen": "0.0.0.0", "listen_port": 3240,   // 常用 3240
+  //     "devices": [{ "bus_id": "1-2" }] },
+  //
+  //   // 内存守护
+  //   { "type": "oom-killer", "tag": "oom", "memory_limit": "1G", "safety_margin": "100M" }   // 常用 512M/1G
+  // ],
+
+  // ===========================================================================
+  // 13. experimental：实验性功能
+  // ===========================================================================
+  "experimental": {
+    // 持久化缓存：DNS、FakeIP、规则集等。
+    "cache_file": {
+      "enabled": true,   // 常用 true
+      "path": "/tmp/sing-box-cache.db",   // 生产常用 /etc/singbox-lite/cache.db（本项目）或 /etc/sing-box/cache.db
+      "store_dns": true,                // 常用 true
+      "store_fakeip": false             // 常用 false；用 FakeIP 时改 true
+      // cache_id: "instance-1"           // 多实例共用一个文件时用于隔离
+    },
+
+    // Clash 兼容 API：面板/机场客户端用。
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",  // 常用 9090；监听 0.0.0.0 时务必设 secret
+      "default_mode": "rule",                   // rule|global|direct；常用 rule
+      "secret": ""                             // 局域网面板建议设强密码
+      // external_ui: "/etc/sing-box/ui"
+      // external_ui_download_url / external_ui_download_detour
+      // access_control_allow_origin / access_control_allow_private_network
+    }
+
+    // V2Ray 统计 API：
+    // "v2ray_api": { "listen": "127.0.0.1:8080",   // 常用 8080
+    //   "stats": { "enabled": true, "inbounds": true, "outbounds": true, "users": true } }
+    //
+    // Go 运行时调试：
+    // "debug": { "listen": "127.0.0.1:6060", "gc_percent": 100,   // 常用 6060
+    //   "memory_limit": "512M", "oom_killer": true }
+  }
+}
+
+// =============================================================================
+// 附录 A. 公共字段速查（入站/出站/DNS/服务共用）
+// =============================================================================
+//
+// 监听字段：
+//   listen / listen_port / bind_interface / routing_mark / reuse_addr / netns /
+//   tcp_fast_open / tcp_multi_path / disable_tcp_keep_alive / tcp_keep_alive /
+//   tcp_keep_alive_interval / udp_fragment / udp_timeout / detour
+//
+// 拨号字段：
+//   detour / bind_interface / inet4_bind_address / inet6_bind_address /
+//   bind_address_no_port / protect_path / routing_mark / reuse_addr / netns /
+//   connect_timeout / tcp_fast_open / tcp_multi_path / disable_tcp_keep_alive /
+//   tcp_keep_alive / tcp_keep_alive_interval / udp_fragment / domain_resolver /
+//   network_strategy / network_type / fallback_network_type / fallback_delay
+//
+// TLS（tls 对象）：
+//   入站：enabled / server_name / certificate / certificate_path / key / key_path /
+//         client_authentication / client_certificate* / handshake_timeout /
+//         certificate_provider / ech / reality
+//   出站：enabled / engine(go|apple|windows) / disable_sni / server_name / insecure /
+//         alpn / min_version / max_version / certificate / certificate_path /
+//         certificate_public_key_sha256 / client_certificate* / client_key* /
+//         fragment / record_fragment / spoof / spoof_method / utls / reality
+//
+// TLS 常用值：
+//   min_version "1.2" / max_version "1.3"
+//   alpn ["h2", "http/1.1"]（或 ["h3"]）
+//   utls.fingerprint chrome / firefox / safari / ios / android
+//   证书常用 /etc/ssl/fullchain.pem + /etc/ssl/key.pem
+//
+// 多路复用（multiplex）：
+//   入站：enabled / padding / brutal
+//   出站：enabled / protocol(smux|yamux|h2mux) / max_connections /
+//         min_streams / max_streams / padding / brutal
+//
+// V2Ray 传输层（transport，用于 VLESS/VMess/Trojan）：
+//   type: http | ws | quic | grpc | httpupgrade
+//   http:      host / path / method / headers / idle_timeout / ping_timeout
+//   ws:        path / headers / max_early_data / early_data_header_name
+//   quic:      （无额外字段）
+//   grpc:      service_name / idle_timeout / ping_timeout / permit_without_stream
+//   httpupgrade: host / path / headers
+//
+// 用户对象（users[]）：
+//   HTTP/SOCKS/mixed：{ username, password }
+//   VMess：{ name, uuid, alterId }
+//   VLESS：{ name, uuid, flow }
+//   Trojan/AnyTLS/ShadowTLS/Hysteria2：{ name, password }
+//   Shadowsocks：{ name, password }
+//   Hysteria：{ name, auth, auth_str }
+//   TUIC：{ name, uuid, password }
+//   Snell：{ name, userkey }
+//
+// 常用枚举：
+//   日志级别：trace debug info warn warning error fatal panic
+//   域名策略：as_is prefer_ipv4 prefer_ipv6 ipv4_only ipv6_only
+//   网络策略：default fallback hybrid
+//   网络类型：cellular ethernet wifi other
+//   拒绝方式：default drop reply
+//   Sniff：tls http quic dns stun bittorrent dtls ssh rdp ntp
+//
+// 时长：30s / 1m30s / 1h，或纯数字（纳秒）。
+//
+// =============================================================================
+// 附录 B. 1.14.4 已移除/易错项
+// =============================================================================
+//
+// 已移除（写入会报 unknown field）：
+//   outbounds[].type = wireguard / dns
+//   inbounds[].sniff / sniff_override_destination / sniff_timeout / domain_strategy
+//   inbounds[].udp_disable_domain_unmapping
+//   DNS server type = legacy
+//   规则字段 geosite / geoip
+//
+// 易错：
+//   - WireGuard peer 用 address / port，不是 server / server_port。
+//   - Snell 必须写 version：入站 5/6，出站 4/6。
+//   - route.final 不是 Schema 必填，但建议始终显式写。
+//   - tag 唯一且必须存在；Schema 不校验引用，靠 sing-box check。
+//   - 1.15 文档里的 tailcat / MASQUE / TUN multi_queue 在 1.14.4 不存在。
+// =============================================================================
+// =============================================================================
+// 附录 C. 常用值速查（可直接抄）
+// =============================================================================
+//
+// 端口（按习惯，不强制）：
+//   mixed        7890   （Clash 习惯）或 1080
+//   http         8080
+//   socks        1080
+//   redirect     12345
+//   tproxy       12345
+//   shadowsocks  8388
+//   vless / trojan / hysteria2 / tuic / anytls / naive / shadowtls / snell  443
+//   WireGuard    51820  （WARP 常用 2408/500/1701/4500）
+//   OpenVPN      1194   （也可 443）
+//   OpenConnect  443
+//   USB/IP       3240
+//   DNS          53（UDP/TCP）、853（DoT/DoQ）、443（DoH/DoH3）
+//   NTP          123
+//   Clash API    9090
+//   sing-box API 9091
+//   V2Ray API    8080
+//   pprof/debug  6060
+//
+// 地址与网段：
+//   TUN       172.19.0.1/30（本项目）或 172.18.0.1/30
+//   FakeIP    198.18.0.0/15 + fc00::/18
+//   WireGuard 10.0.0.2/32（客户端）
+//   Tailscale 地址由控制面分配
+//
+// 时间：
+//   sniff 超时              300ms
+//   DNS 查询超时            10s（移动网络可 5s）
+//   urltest 间隔            10m（也可 5m）
+//   切换容差                50ms
+//   NTP 间隔                30m（也可 1h）
+//   规则集更新              1d
+//   乐观缓存                3d
+//
+// 常用 DNS：
+//   国内   223.5.5.5 / 119.29.29.29 / 180.76.76.76
+//   国外   1.1.1.1 / 8.8.8.8 / 9.9.9.9
+//   DoH    cloudflare-dns.com / dns.google / dns.quad9.net / dns.alidns.com
+//
+// 常用测速 URL：
+//   https://www.gstatic.com/generate_204
+//   https://cp.cloudflare.com/generate_204
+//   https://www.google.com/generate_204
+//
+// 常用 tag 命名：
+//   tun-in / mixed-in / direct / block / default / auto
+//   dns-direct / dns-proxy / geosite-cn / geoip-cn
+//
+// 常用证书路径（按实际签发方式替换）：
+//   /etc/ssl/fullchain.pem + /etc/ssl/key.pem
+//   /etc/ssl/certs/ca-certificates.crt
+//
+// 常用缓存路径：
+//   /etc/singbox-lite/cache.db（本项目）
+//   /etc/sing-box/cache.db
+//
+// 常用 MTU：
+//   9000（TUN 默认推荐）或 1500（兼容性优先）
+// =============================================================================
