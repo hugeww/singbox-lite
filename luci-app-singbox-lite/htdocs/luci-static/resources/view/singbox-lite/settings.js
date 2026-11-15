@@ -6,6 +6,8 @@
 'require ui';
 'require tools.singbox-lite as api';
 
+const PLUGIN_CONFIG_DETAIL_MAX = 200;
+
 function notify(title, msg, type) {
 	ui.addNotification(title, msg, type || 'info');
 }
@@ -40,6 +42,24 @@ function confirmAction(title, message, action) {
 			])
 		]);
 	});
+}
+
+/*
+ * The plugin update runner records the post-upgrade config rebuild result in
+ * the `config` field of plugin-update.json; failures carry raw output in
+ * `config.detail`. Keep the notification readable: flatten newlines and runs
+ * of whitespace to one space and cap the length with an ellipsis.
+ */
+function formatPluginConfigDetail(detail) {
+	if (detail == null)
+		return '';
+
+	let text = String(detail).replace(/\s+/g, ' ').trim();
+
+	if (text.length > PLUGIN_CONFIG_DETAIL_MAX)
+		text = text.substring(0, PLUGIN_CONFIG_DETAIL_MAX) + '…';
+
+	return text;
 }
 
 function pollPluginUpdate() {
@@ -146,7 +166,39 @@ return view.extend({
 							return pollPluginUpdate().then(function(st) {
 								if (!st) return;
 								if (st.state == 'done') {
-									notify(_('Plugin update'), _('Plugin updated to ') + (st.version || st.tag || '') + '. ' + _('Reload the page to use the new UI.'), 'info');
+									let cfg = st.config || null;
+									let version = st.version || st.tag || '';
+
+									if (cfg && cfg.state === 'error') {
+										let msg = _('Plugin installed, but the configuration rebuild failed: ') + (cfg.error || _('unknown error'));
+										let detail = formatPluginConfigDetail(cfg.detail);
+										if (detail) msg += ' — ' + detail;
+										notify(_('Plugin update'), msg, 'danger');
+										/* Keep the page in place so the failure stays readable. */
+										return;
+									}
+
+									let configMsg = '';
+									let type = 'info';
+									if (cfg && cfg.changed === true) {
+										configMsg = cfg.restarted
+											? _('Configuration rebuilt and the service restarted.')
+											: _('Configuration rebuilt; restart the service to apply.');
+									} else if (cfg && cfg.skipped) {
+										if (cfg.skipped == 'first-install') {
+											configMsg = _('Configuration not rebuilt for a first install; save the settings to generate it.');
+										} else {
+											configMsg = _('Configuration not rebuilt because the sing-box core is not installed.');
+											type = 'warning';
+										}
+									}
+
+									if (configMsg) {
+										let prefix = version ? _('Plugin updated to ') + version + '. ' : '';
+										notify(_('Plugin update'), prefix + configMsg + ' ' + _('Reload the page to use the new UI.'), type);
+									} else {
+										notify(_('Plugin update'), _('Plugin updated to ') + version + '. ' + _('Reload the page to use the new UI.'), 'info');
+									}
 									setTimeout(function() { window.location.reload(); }, 1500);
 								} else {
 									notify(_('Plugin update'), (st.detail || st.error || _('Update failed')), 'danger');

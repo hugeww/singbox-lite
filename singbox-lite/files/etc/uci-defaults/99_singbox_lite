@@ -52,6 +52,21 @@ if [ -z "$(uci -q get singbox-lite.panel.dashboard)" ]; then
 	uci set singbox-lite.panel.dashboard=official
 fi
 
+# Ensure the Tailscale section exists after upgrades (disabled by default).
+if ! uci -q get singbox-lite.tailscale > /dev/null 2>&1; then
+	uci set singbox-lite.tailscale=tailscale
+	uci set singbox-lite.tailscale.enabled=0
+	uci set singbox-lite.tailscale.auth_key=''
+	uci set singbox-lite.tailscale.hostname=''
+	uci set singbox-lite.tailscale.state_directory='/etc/singbox-lite/tailscale'
+	uci set singbox-lite.tailscale.accept_routes=0
+	uci set singbox-lite.tailscale.advertise_routes=''
+	uci set singbox-lite.tailscale.advertise_exit_node=0
+	uci set singbox-lite.tailscale.exit_node=''
+	uci set singbox-lite.tailscale.exit_node_allow_lan_access=0
+	uci set singbox-lite.tailscale.exit_node_default=0
+fi
+
 # Migrate the removed mixed inbound to the TUN inbound.
 uci -q get singbox-lite.inbound > /dev/null 2>&1 || uci set singbox-lite.inbound=inbound
 uci -q get singbox-lite.inbound.address > /dev/null 2>&1 || uci set singbox-lite.inbound.address='172.19.0.1/30,fdfe:dcba:9876::1/126'

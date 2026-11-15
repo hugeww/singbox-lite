@@ -1,6 +1,6 @@
 'use strict';
 
-import { trim, read_text, write_text, write_json, mkdir_p, run_capture, sh_quote, PATH, VERSION, now_string } from 'sbx_common';
+import { trim, read_text, read_json, write_text, write_json, mkdir_p, run_capture, sh_quote, PATH, VERSION, now_string } from 'sbx_common';
 import { unlink, stat } from 'fs';
 import { list_tags, latest_tag, mirror_url } from 'sbx_releases';
 
@@ -8,6 +8,8 @@ const PLUGIN_REPO = 'hugeww/singbox-lite';
 const PLUGIN_PACKAGE = 'luci-app-singbox-lite';
 const PLUGIN_BRANCH = 'openwrt-25.12';
 const PLUGIN_ARCHS = [ 'x86_64', 'aarch64_cortex-a53' ];
+/* 自更新标记：postinst 看到存活的 CLI PID 就跳过嵌套 post-upgrade，由本进程内联重建。 */
+const POST_UPGRADE_SKIP = PATH.run_dir + '/skip-post-upgrade';
 
 /* Package version without the "v" prefix and the OpenWrt release suffix. */
 function base_version(v) {
@@ -16,6 +18,14 @@ function base_version(v) {
 	let dash = index(v, '-');
 	if (dash >= 0) v = substr(v, 0, dash);
 	return v;
+}
+
+/* Current ucode process PID. common.getpid() uses popen('echo $$'), i.e. the
+ * PID of a short-lived shell that is already gone, so it cannot gate postinst's
+ * kill -0 check. Read the real PID from /proc/self/stat instead. */
+function self_pid() {
+	let m = match(read_text('/proc/self/stat', ''), /^([0-9]+)/);
+	return m ? m[1] : '';
 }
 
 /* DISTRIB_ARCH from the release file, falling back to uname. */
@@ -176,6 +186,10 @@ function install_packages(files) {
 
 function update_plugin(cfg, opts) {
 	opts = opts || {};
+	/* Clear the previous run's rebuild result so a stale status is never
+	   reported as the outcome of this update. */
+	try { unlink(PATH.post_upgrade_status); } catch (e) {}
+	try { unlink(POST_UPGRADE_SKIP); } catch (e) {}
 	let mirror = opts.mirror != null ? opts.mirror : ((cfg && cfg.main && cfg.main.core_mirror) || '');
 	let tag = opts.version || (cfg && cfg.version && cfg.version.plugin_tag) || '';
 	if (!length(tag)) {
@@ -223,7 +237,22 @@ function update_plugin(cfg, opts) {
 	mkdir_p(PATH.run_dir);
 	let cfg_snapshot = read_text(PATH.config, '');
 	if (length(cfg_snapshot)) write_text(PATH.run_dir + '/config.uci.bak', cfg_snapshot, 384);
-	let inst = install_packages(files);
+	/* update-plugin holds the CLI mutation lock for the whole run, so a nested
+	   post-upgrade spawned by the package postinst would only wait on that lock
+	   and fail. Mark the live CLI PID to let the postinst skip that call; this
+	   process rebuilds config.json inline after install instead. */
+	let skip_pid = self_pid();
+	if (length(skip_pid) && skip_pid != '0')
+		write_text(POST_UPGRADE_SKIP, skip_pid, 384);
+	let inst;
+	try {
+		inst = install_packages(files);
+	} catch (e) {
+		inst = { ok: false, output: sprintf('%s', e) };
+	}
+	/* Always clear the marker, even when the install failed, so a leftover PID
+	   can never make later postinst runs skip their rebuild. */
+	try { unlink(POST_UPGRADE_SKIP); } catch (e) {}
 	if (!inst.ok) {
 		write_status('error', { error: '安装失败', detail: substr(inst.output || '', 0, 400) });
 		return { ok: false, error: '安装失败', detail: inst.output };
@@ -238,8 +267,14 @@ function update_plugin(cfg, opts) {
 	}
 	system([ 'rm', '-rf', tmp_dir ]);
 	try { unlink(tmp_tar); } catch (e) {}
+	/* The package postinst runs the CLI rebuild right after the new files are
+	   installed; surface its result in the plugin update status. With no_done
+	   the CLI wrapper rebuilds inline and writes the final done itself, so the
+	   UI keeps polling "installing" until the rebuild finished. */
+	let post_upgrade = read_json(PATH.post_upgrade_status, null);
 	let version = installed_version();
-	write_status('done', { version: version, tag: dl.tag, restored: restored });
+	if (opts.no_done != true)
+		write_status('done', { version: version, tag: dl.tag, restored: restored, config: post_upgrade });
 	return { ok: true, version: version, tag: dl.tag, package: PLUGIN_PACKAGE, restored: restored, detail: inst.output };
 }
 

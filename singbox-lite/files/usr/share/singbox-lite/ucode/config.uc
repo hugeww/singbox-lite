@@ -19,7 +19,7 @@ function load_uci_config() {
 	ctx.load(UCI_NAME);
 	let all = ctx.get_all(UCI_NAME) || {};
 	let cfg = {
-		main: {}, inbound: {}, dns: {}, egress: {}, version: {}, panel: {},
+		main: {}, inbound: {}, dns: {}, egress: {}, version: {}, panel: {}, tailscale: {},
 		rulesets: [], egress_groups: [], subscriptions: [], nodes: [], node_overrides: []
 	};
 	for (let name in keys(all)) {
@@ -37,6 +37,7 @@ function load_uci_config() {
 		else if (t == 'inbound') cfg.inbound = s;
 		else if (t == 'dns') cfg.dns = s;
 		else if (t == 'egress') cfg.egress = s;
+		else if (t == 'tailscale') cfg.tailscale = s;
 		else if (t == 'ruleset') push(cfg.rulesets, s);
 		else if (t == 'egress_group') push(cfg.egress_groups, s);
 		else if (t == 'subscription') push(cfg.subscriptions, s);

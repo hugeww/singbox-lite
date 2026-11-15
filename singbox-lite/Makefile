@@ -72,6 +72,29 @@ define Package/singbox-lite/postinst
 mkdir -p /etc/singbox-lite/subs /etc/singbox-lite/meta /etc/singbox-lite/rulesets
 mkdir -p /var/log/singbox-lite
 chmod 700 /etc/singbox-lite
+# A plugin self-update holds the CLI mutation lock while apk runs this script.
+# Its live marker PID means update-plugin will rebuild config.json inline after
+# install, so skip the nested call here; a dead PID is a crashed update and the
+# marker is dropped so future upgrades are not skipped forever.
+UPGRADE_SKIP=/tmp/singbox-lite/skip-post-upgrade
+if [ -f "$$UPGRADE_SKIP" ]; then
+	UPGRADE_PID="$$(cat "$$UPGRADE_SKIP" 2>/dev/null)"
+	case "$$UPGRADE_PID" in
+		''|0|*[!0-9]*) rm -f "$$UPGRADE_SKIP" ;;
+		*)
+			if kill -0 "$$UPGRADE_PID" 2>/dev/null; then
+				exit 0
+			fi
+			rm -f "$$UPGRADE_SKIP"
+			;;
+	esac
+fi
+# Rebuild config.json after a package upgrade. A first install has no
+# config.json yet, so nothing runs; installing a core/dashboard stays an
+# explicit user action in LuCI and is never triggered from here.
+if [ -f /etc/singbox-lite/config.json ] && [ -x /usr/bin/singbox-lite ]; then
+	/usr/bin/singbox-lite post-upgrade --json >>/var/log/singbox-lite/upgrade.log 2>&1 || true
+fi
 exit 0
 endef
 

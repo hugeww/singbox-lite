@@ -74,6 +74,21 @@ start_service() {
 	umask 077
 	mkdir -p "$SINGBOX_LITE_ETC" /var/log/singbox-lite /var/run
 	truncate_log "$log_max_kb" "$SINGBOX_LITE_LOG"
+
+	# Tailscale keeps its node identity and keys here: it must survive reboots
+	# and stay readable by root only. Relative paths resolve against -D dir.
+	config_get_bool tailscale_enabled 'tailscale' 'enabled' 0
+	if [ "$tailscale_enabled" -eq 1 ]; then
+		config_get tailscale_state 'tailscale' 'state_directory' '/etc/singbox-lite/tailscale'
+		case "$tailscale_state" in
+			/*) ;;
+			'') tailscale_state="$SINGBOX_LITE_ETC/tailscale" ;;
+			*) tailscale_state="$SINGBOX_LITE_ETC/$tailscale_state" ;;
+		esac
+		mkdir -p "$tailscale_state" 2> /dev/null
+		chmod 700 "$tailscale_state" 2> /dev/null
+	fi
+
 	if [ "$start_delay" -gt 0 ] 2> /dev/null; then
 		sleep "$start_delay"
 	fi

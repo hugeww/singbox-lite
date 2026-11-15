@@ -20,6 +20,11 @@
 		"order": 15,
 		"action": { "type": "view", "path": "singbox-lite/panel" }
 	},
+	"admin/services/singbox-lite/tailscale": {
+		"title": "Tailscale",
+		"order": 16,
+		"action": { "type": "view", "path": "singbox-lite/tailscale" }
+	},
 	"admin/services/singbox-lite/subscriptions": {
 		"title": "Subscriptions",
 		"order": 20,

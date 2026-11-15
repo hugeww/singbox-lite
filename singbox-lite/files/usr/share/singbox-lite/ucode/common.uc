@@ -9,6 +9,7 @@ const PATH = {
 	lib: getenv('SINGBOX_LITE_LIB') || '/usr/share/singbox-lite',
 	config: getenv('SINGBOX_LITE_CONFIG') || '/etc/config/singbox-lite',
 	init: getenv('SINGBOX_LITE_INIT') || '/etc/init.d/singbox-lite',
+	cli: getenv('SINGBOX_LITE_CLI') || '/usr/bin/singbox-lite',
 	core: getenv('SINGBOX_LITE_CORE') || '/usr/libexec/singbox-lite/sing-box',
 	system_core: '/usr/bin/sing-box',
 	log_dir: getenv('SINGBOX_LITE_LOG_DIR') || '/var/log/singbox-lite',
@@ -26,6 +27,7 @@ PATH.core_meta = PATH.etc + '/core.json';
 PATH.core_update_status = PATH.run_dir + '/core-update.json';
 PATH.plugin_update_status = PATH.run_dir + '/plugin-update.json';
 PATH.dashboard_update_status = PATH.run_dir + '/dashboard-update.json';
+PATH.post_upgrade_status = PATH.run_dir + '/post-upgrade.json';
 PATH.releases_cache = PATH.run_dir + '/releases.json';
 PATH.refresh_status = PATH.run_dir + '/refresh.json';
 PATH.cron_file = getenv('SINGBOX_LITE_CRON_FILE') || '/etc/crontabs/root';
@@ -142,6 +144,11 @@ function run(argv) {
 	return system(argv);
 }
 
+function now_string() {
+	let r = run_capture("date '+%Y-%m-%d %H:%M:%S'");
+	return trim(r.out);
+}
+
 function log_app(message) {
 	mkdir_p(PATH.log_dir);
 	let line = sprintf('%s %s\n', now_string(), message);
@@ -153,11 +160,6 @@ function log_app(message) {
 			old = substr(old, length(old) - 512 * 1024);
 		writefile(file, old + line);
 	} catch (e) {}
-}
-
-function now_string() {
-	let r = run_capture("date '+%Y-%m-%d %H:%M:%S'");
-	return trim(r.out);
 }
 
 function now_epoch() {

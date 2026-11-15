@@ -89,7 +89,7 @@ detour to an empty direct outbound makes no sense
 - 日志运行中超过 `log_max_kb` 不会实时轮转，只在下一次 start/restart 截断。
 - 节点 ID 冲突场景（同 legacy id 的多个不同节点）旧 group/override 只能通过 legacy 别名命中第一个；新 UI 使用新 ID。
 - `rulesets.js` 已保存但当前不可用的 target 会显示 `(unavailable)`，但生成器仍会硬错误；不会静默改路由。
-- JSON5 模板里的 `ntp`/`certificate*`/`http_clients`/`network_namespaces`/`endpoints`/`services` 仍不由表单生成，属手工/高级配置。
+- JSON5 模板里的 `ntp`/`certificate*`/`http_clients`/`network_namespaces`/`services` 仍不由表单生成，属手工/高级配置；`endpoints` 目前只由「Tailscale」页生成 `type: tailscale`，其余 endpoint 类型仍靠手工。
 
 ---
 
@@ -398,7 +398,9 @@ init 的 `core_path()`（`init.d:19-33`）会优先使用 UCI `main.core_binary`
 | `outbounds` | 是 | direct/selector/urltest + 链接解析出的节点 |
 | `route` | 是 | 规则/规则集/默认出口 |
 | `experimental` | 是 | cache_file（+ 可选 clash_api） |
-| `ntp` / `certificate` / `certificate_providers` / `http_clients` / `network_namespaces` / `endpoints` / `services` | 否 | 仅文档/手工高级配置 |
+| `endpoints`（tailscale） | 是 | 「Tailscale」页开关，含 MagicDNS 与 preferred_by 路由规则 |
+| `endpoints`（wireguard/openvpn/openconnect 等） | 否 | 仅文档/手工高级配置 |
+| `ntp` / `certificate` / `certificate_providers` / `http_clients` / `network_namespaces` / `services` | 否 | 仅文档/手工高级配置 |
 
 建议在 JSON5 模板顶部明确标注“生成器只覆盖 log/dns/inbounds/outbounds/route/experimental；其余块需要手工/仅核心模式”，避免用户以为表单能配置全部。
 

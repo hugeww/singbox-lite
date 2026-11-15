@@ -102,6 +102,74 @@ function listen_address(listen, port) {
 	return host + ':' + port;
 }
 
+/*
+ * Tailscale endpoint (sing-box 1.14, requires a with_gvisor/with_tailscale
+ * build). The tag is shared by the endpoint, the ts DNS server and the
+ * preferred_by rules, so keep it unlikely to collide with node/custom-group
+ * tags (those are slug-hash or UCI section names).
+ */
+const TAILSCALE_TAG = 'ts-ep';
+const TAILSCALE_DNS_TAG = 'dns-ts';
+
+function tailscale_state_directory(value) {
+	let dir = trim(value == null ? '' : value);
+	if (!length(dir)) dir = PATH.etc + '/tailscale';
+	if (!match(dir, /^\//)) dir = PATH.etc + '/' + dir;
+	return dir;
+}
+
+function tailscale_routes(value, errors) {
+	let routes = [];
+	for (let item in as_list(value)) {
+		let route = trim(item);
+		if (!length(route)) continue;
+		if (route == '0.0.0.0/0' || route == '::/0') {
+			push(errors, 'Tailscale 的 advertise_routes 不能包含默认路由 0.0.0.0/0 或 ::/0，请改用 advertise_exit_node');
+			continue;
+		}
+		if (!match(route, /^[0-9a-fA-F:.]+\/[0-9]{1,3}$/)) {
+			push(errors, sprintf('Tailscale advertise_routes 条目「%s」不是合法 CIDR', route));
+			continue;
+		}
+		push(routes, route);
+	}
+	return routes;
+}
+
+function tailscale_plan(cfg, warnings, errors) {
+	let ts = cfg.tailscale || {};
+	if (ts.enabled != '1') return { enabled: false };
+	let auth_key = trim(ts.auth_key || '');
+	let hostname = trim(ts.hostname || '');
+	let exit_node = trim(ts.exit_node || '');
+	let endpoint = {
+		type: 'tailscale',
+		tag: TAILSCALE_TAG,
+		state_directory: tailscale_state_directory(ts.state_directory),
+		/* Control plane/DERP traffic must not depend on the selected proxy
+		   group: resolve the control host directly and dial out directly. */
+		domain_resolver: 'dns-direct',
+		detour: 'direct-dns',
+		accept_routes: ts.accept_routes == '1'
+	};
+	if (length(auth_key)) endpoint.auth_key = auth_key;
+	else push(warnings, 'Tailscale 已启用但未填写 auth_key：首次启动后需要从日志中的登录链接完成认证');
+	if (length(hostname)) endpoint.hostname = hostname;
+	let advertise_routes = tailscale_routes(ts.advertise_routes, errors);
+	if (length(advertise_routes)) endpoint.advertise_routes = advertise_routes;
+	if (ts.advertise_exit_node == '1') endpoint.advertise_exit_node = true;
+	if (length(exit_node)) {
+		endpoint.exit_node = exit_node;
+		if (ts.exit_node_allow_lan_access == '1') endpoint.exit_node_allow_lan_access = true;
+	}
+	let use_default = ts.exit_node_default == '1';
+	if (use_default && !length(exit_node)) {
+		push(warnings, 'Tailscale 未填写出口节点，已忽略「默认出口走 Tailscale」');
+		use_default = false;
+	}
+	return { enabled: true, endpoint: endpoint, use_default: use_default };
+}
+
 function build_config(cfg, collected) {
 	let warnings = [];
 	let errors = [];
@@ -109,6 +177,8 @@ function build_config(cfg, collected) {
 	let groups = group_nodes(nodes);
 
 	if (!length(nodes)) push(errors, '没有可用节点：请先添加订阅或手动节点');
+
+	let ts = tailscale_plan(cfg, warnings, errors);
 
 	let egress = cfg.egress || {};
 	let outbounds = [ { type: 'direct', tag: 'direct' }, { type: 'direct', tag: 'direct-dns', tcp_fast_open: true } ];
@@ -198,10 +268,15 @@ function build_config(cfg, collected) {
 	let dns_mode = cfg.dns && cfg.dns.mode ? cfg.dns.mode : 'split';
 	let route_rules = [
 		{ action: 'sniff' },
-		{ protocol: 'dns', action: 'hijack-dns' },
-		{ ip_is_private: true, outbound: 'direct' }
+		{ protocol: 'dns', action: 'hijack-dns' }
 	];
+	/* Tailnet peers, MagicDNS names and accepted subnet routes must be routed
+	   into the endpoint before the generic private-IP direct rule: accepted
+	   routes are RFC1918 ranges and would otherwise leak out via 'direct'. */
+	if (ts.enabled) push(route_rules, { preferred_by: [ TAILSCALE_TAG ], outbound: TAILSCALE_TAG });
+	push(route_rules, { ip_is_private: true, outbound: 'direct' });
 	let dns_rules = [];
+	if (ts.enabled && dns_mode != 'system') push(dns_rules, { preferred_by: [ TAILSCALE_TAG ], server: TAILSCALE_DNS_TAG });
 	if (dns_mode == 'split')
 		push(dns_rules, { domain_suffix: [ '.lan', '.local', '.home.arpa' ], server: 'dns-direct' });
 	let route_exclude_tags = [];
@@ -257,8 +332,17 @@ function build_config(cfg, collected) {
 			/* 服务器地址是 IP，用固定 SNI 校验证书，避免依赖 1.1.1.1 的 IP SAN。 */
 			tls: { enabled: true, server_name: 'cloudflare-dns.com' }
 		});
-	if (dns_mode == 'proxy')
-		dns_rules = [];
+	if (ts.enabled && dns_mode != 'system')
+		push(dns_servers, { type: 'tailscale', tag: TAILSCALE_DNS_TAG, endpoint: TAILSCALE_TAG, accept_default_resolvers: true });
+	if (dns_mode == 'proxy') {
+		/* proxy mode means all DNS through the proxy, but MagicDNS names only
+		   exist inside the tailnet: keep the preferred_by rule, drop the rest. */
+		let kept = [];
+		for (let r in dns_rules) if (r.preferred_by) push(kept, r);
+		dns_rules = kept;
+	}
+	if (ts.enabled && dns_mode == 'system')
+		push(warnings, 'DNS 模式为 system，Tailscale MagicDNS 不会生效');
 	let dns = {
 		servers: dns_servers,
 		rules: dns_mode == 'system' ? [] : dns_rules,
@@ -337,12 +421,13 @@ function build_config(cfg, collected) {
 		route: {
 			rules: route_rules,
 			rule_set: rule_set_defs,
-			final: 'default',
+			final: ts.use_default ? TAILSCALE_TAG : 'default',
 			default_domain_resolver: 'dns-direct',
 			auto_detect_interface: true
 		},
 		experimental: experimental
 	};
+	if (ts.enabled) config.endpoints = [ ts.endpoint ];
 	if (services) config.services = services;
 	return { ok: true, config: config, warnings: warnings, errors: [] };
 }

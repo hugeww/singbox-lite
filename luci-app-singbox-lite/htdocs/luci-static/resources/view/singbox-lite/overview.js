@@ -8,6 +8,7 @@
 
 const CORE_POLL_INTERVAL = 1500;
 const CORE_POLL_TIMEOUT = 6 * 60 * 1000;
+const CORE_UPDATE_DETAIL_MAX = 200;
 
 function notify(title, msg, type) {
 	ui.addNotification(title, msg, type || 'info');
@@ -36,6 +37,23 @@ function pollUntil(fetch, done, interval, deadline) {
 			return r;
 		return sleep(interval).then(function() { return pollUntil(fetch, done, interval, deadline); });
 	});
+}
+
+/*
+ * core.uc reports the sing-box check / start failure in `detail`. Keep the
+ * overview readable: flatten newlines and runs of whitespace to one space and
+ * cap the length, appending an ellipsis when the text was cut.
+ */
+function formatCoreUpdateDetail(detail) {
+	if (detail == null)
+		return '';
+
+	let text = String(detail).replace(/\s+/g, ' ').trim();
+
+	if (text.length > CORE_UPDATE_DETAIL_MAX)
+		text = text.substring(0, CORE_UPDATE_DETAIL_MAX) + '…';
+
+	return text;
 }
 
 return view.extend({
@@ -78,7 +96,11 @@ return view.extend({
 			case 'restarting': return _('Restarting with %s…').format(s.version || '');
 			case 'rolling-back': return _('New core failed to start, rolling back…');
 			case 'done': return _('Core updated to %s').format(s.version || '');
-			case 'error': return _('Update failed: %s').format(s.error || '');
+			case 'error': {
+				let text = _('Update failed: %s').format(s.error || '');
+				let detail = formatCoreUpdateDetail(s.detail);
+				return detail ? text + ' — ' + detail : text;
+			}
 			default: return '-';
 			}
 		}
@@ -102,7 +124,8 @@ return view.extend({
 			paint('_core_version', live.version || '-');
 			paint('_core_update_state', describeCoreUpdate({
 				state: live.update, url: coreUpdate.url,
-				version: coreUpdate.version, error: coreUpdate.error
+				version: coreUpdate.version, error: coreUpdate.error,
+				detail: coreUpdate.detail
 			}));
 		}
 
@@ -239,7 +262,8 @@ return view.extend({
 			.cfgvalue = function() {
 				return describeCoreUpdate({
 					state: live.update, url: coreUpdate.url,
-					version: coreUpdate.version, error: coreUpdate.error
+					version: coreUpdate.version, error: coreUpdate.error,
+					detail: coreUpdate.detail
 				});
 			};
 

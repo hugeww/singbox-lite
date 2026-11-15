@@ -19,7 +19,8 @@
 - **核心管理**：最低 sing-box 1.14.4；GitHub 最新稳定版下载、校验、原子替换、失败回滚。
 - **版本管理**：设置页可查看核心与插件当前版本，从 GitHub Release 列表选择版本，一键更新核心或插件（插件走 apk 覆盖安装）。
 - **实时面板**：默认托管官方 [sing-box dashboard](https://github.com/SagerNet/sing-box-dashboard)，由 sing-box 1.14+ 的 **API 服务**（`services[type=api]` 的 `dashboard`）在 `/dashboard/` 提供，走 gRPC-Web，**不是 Clash API 面板**；也可切换为内置 LuCI 面板（走 Clash API，含流量、连接、代理组切换与测速）。API/Clash API 默认监听 `0.0.0.0:9090` 并带随机密钥。
-- **LuCI 页面**：概览、订阅、节点、规则集/分流、出口组、设置、日志。
+- **Tailscale**：可选的 `tailscale` endpoint，一键开关把路由器接入 tailnet；支持子网路由（接受/通告）、MagicDNS 和出口节点，登录链接直接显示在页面上。
+- **LuCI 页面**：概览、订阅、节点、规则集/分流、出口组、Tailscale、设置、日志。
 - **配置预览/下载**：概览页可预览生成的 sing-box JSON，弹窗内可下载 `singbox-lite-config.json`；预览只读，不会写入 `/etc/singbox-lite/config.json`。
 
 ## 环境要求
@@ -79,6 +80,7 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 | `/usr/share/singbox-lite/rulesets/` | 内置规则集 |
 | `/usr/libexec/singbox-lite/sing-box` | 托管核心 |
 | `/etc/singbox-lite/cache.db` | 核心缓存（含 DNS 缓存） |
+| `/etc/singbox-lite/tailscale/` | Tailscale 节点身份与密钥（`state_directory`，0700） |
 | `/etc/nftables.d/0-sing-box-auto-redirect.nft` | auto_redirect 写入 fw4 的兼容规则（由 sing-box 管理） |
 
 ## 编辑配置
@@ -89,6 +91,7 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 - **节点**：手动分享链接/outbound JSON、节点国家/原生覆盖。
 - **规则集 / 分流**：规则集内容、启用状态、目标出口组和顺序。
 - **出口组**：自定义 selector/urltest、成员和默认节点。
+- **Tailscale**：启用开关、认证密钥、子网路由、出口节点。
 - **设置**：日志、DNS 模式、TUN、面板、核心/插件更新。
 
 在这些页面保存后，回到概览点「保存并检查配置」。如果要直接改生成后的 JSON，只能 SSH 编辑 `/etc/singbox-lite/config.json` 后重启；但下一次保存/定时刷新会重新生成并覆盖它。高级 JSON 编辑器不是当前实现的一部分（项目刻意以 UCI 表单为主，避免反向解析生成配置）。
@@ -143,6 +146,31 @@ rm -f /tmp/luci-indexcache                         # 丢弃缓存里已翻译好
 
 连 metacubexd / yacd 等其他 Clash 面板时，把面板类型切到「内置」、`listen` 设为 `0.0.0.0`，在「设置 → 面板」保存后重启服务，并自行在防火墙放行该端口——这属于本插件「不改防火墙」之外的操作用户自理。
 
+## Tailscale
+
+「Tailscale」页把 sing-box 1.14 的 [tailscale endpoint](https://sing-box.sagernet.org/configuration/endpoint/tailscale/) 接进本插件。开启开关并保存/重启后，生成器会额外产出：
+
+- `endpoints[]`：`type: tailscale`（固定 tag `ts-ep`），`state_directory` 默认 `/etc/singbox-lite/tailscale`；
+- `dns.servers[]`：`type: tailscale`（tag `dns-ts`）+ 一条 `preferred_by: ["ts-ep"]` 的 DNS 规则，用于 MagicDNS；
+- `route.rules[]`：`preferred_by: ["ts-ep"]` → `outbound: "ts-ep"`，位置在「私有 IP 直连」规则之前，因此 tailnet 节点 IP、MagicDNS 域名和其他节点通告的子网路由都会进 endpoint，而不是被当成内网直连或默认代理。
+
+**登录**：无人值守请填 `auth_key`（`tskey-auth-...`）。不填时首次启动会在核心日志里打印 `Waiting for authentication: https://login.tailscale.com/...`，页面的「登录 URL」和「打开登录页面」按钮会显示/打开它，浏览器批准设备即可；登录态保存在 `state_directory`，重启不需要再登录。
+
+**典型用法**：
+
+- **远程回家**：填「通告路由」如 `192.168.1.0/24`，在 Tailscale 管理台批准该子网路由，外部设备装 Tailscale 后即可直连 LAN 设备，不需要公网 IP/端口映射；
+- **访问对端子网**：打开「接受子网路由」，对端网点亮的子网会由 `preferred_by` 规则自动送入 tailnet，无需手写 CIDR；
+- **出口节点**：填「使用出口节点」并打开「默认出口走出口节点」，`route.final` 会改为 `ts-ep`，未被规则集匹配的流量从该出口离开（仍保留规则集分流）；只把部分流量送进出口节点时，不要打开「默认出口」，改为在规则集里把目标出口指向它——当前规则集的目标是出口组，尚不支持直接选 endpoint，这是后续可以补的 UI 能力；
+- **把本机当出口**：打开「通告为出口节点」，在管理台批准后，其他设备可把本机设为 exit node。
+
+**注意**：
+
+- 需要带 `with_tailscale`/`with_gvisor` 编译标签的 sing-box 1.14.4+；官方 release 二进制默认包含，自编译或发行版瘦身版可能没有（`sing-box check` 会报未知 endpoint 类型）；
+- endpoint 的控制面/DERP 拨号固定走 `direct-dns` 且用 `dns-direct` 解析，避免代理组故障时 Tailscale 也起不来；
+- DNS 模式为 `system` 时 MagicDNS 不可用（生成时会给出 warning）；`proxy` 模式会保留 MagicDNS 规则；
+- `advertise_routes` 不接受默认路由（`0.0.0.0/0`、`::/0`），要当出口请用「通告为出口节点」；
+- 路由器上不要开 `system_interface`（本插件不提供该选项，生成值保持默认 `false`），否则会和 TUN 的 `auto_route` 抢路由并绕过 sing-box 规则。
+
 ## 构建与发布
 
 **普通提交推送不会触发构建**，构建只在需要时运行：
@@ -188,7 +216,7 @@ done
 ucode -L /tmp/sbxmods tests/run.uc
 ```
 
-`tests/run.uc` 覆盖链接解析、订阅格式、节点分类、规则集/出口组生成、IPv6 面板地址、HTTPS/Clash TLS、SS obfs、下载上限和旧节点 ID 兼容。`tests/check-config.sh` 和 `tests/matrix.sh` 会调用下载的 sing-box 1.14.4 执行 `sing-box check`；CI 的 host tests 也会跑这两项。
+`tests/run.uc` 覆盖链接解析、订阅格式、节点分类、规则集/出口组生成、Tailscale 开关与规则顺序、IPv6 面板地址、HTTPS/Clash TLS、SS obfs、下载上限和旧节点 ID 兼容。`tests/check-config.sh` 和 `tests/matrix.sh` 会调用下载的 sing-box 1.14.4 执行 `sing-box check`；CI 的 host tests 也会跑这两项。
 
 ## 许可证与规则集
 

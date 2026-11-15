@@ -6,7 +6,7 @@ import { parse_body } from 'sbx_subs';
 import { classify_country, is_native, node_fingerprint, legacy_fingerprint, node_tag, override_key, collect_nodes, group_nodes } from 'sbx_nodes';
 import { build_config } from 'sbx_generator';
 import { resolve_rulesets } from 'sbx_rulesets';
-import { arch_asset, version_ge } from 'sbx_core';
+import { arch_asset, version_ge, migrate_config_for_core } from 'sbx_core';
 import { parse_tags, parse_release_page, mirror_url } from 'sbx_releases';
 import { asset_name, download_url, base_version, parse_apk_list, parse_apk_db } from 'sbx_plugin';
 import { pct, proxy_groups, connection_list, panel_config, panel_status, last_delay, dashboard_archive_url, dashboard_selected } from 'sbx_panel';
@@ -49,6 +49,17 @@ let clashSsV2 = clash_to_outbound({ type: 'ss', server: 'ss.example.com', port: 
 	plugin: 'v2ray-plugin', 'plugin-opts': { mode: 'websocket', host: 'cdn.example.com', path: '/ws', tls: true } });
 check(clashSsV2 && clashSsV2.plugin == 'v2ray-plugin' && match(clashSsV2.plugin_opts, /mode=websocket/) != null && match(clashSsV2.plugin_opts, /tls/) != null, 'clash v2ray-plugin mapped');
 
+/* hysteria2 bandwidth / port hopping (URI and Clash spellings) */
+let hy2 = parse_link('hysteria2://pass@hy.example.net:443?sni=hy.example.net&upmbps=100&downmbps=500&mport=1000-2000&hop-interval=30s#HY2');
+check(hy2.ok && hy2.outbound.up_mbps == 100 && hy2.outbound.down_mbps == 500, 'hysteria2 URI bandwidth parsed');
+check(hy2.ok && length(hy2.outbound.server_ports || []) == 1 && hy2.outbound.server_ports[0] == '1000:2000', 'hysteria2 URI port hopping parsed');
+check(hy2.ok && hy2.outbound.hop_interval == '30s', 'hysteria2 URI hop interval parsed');
+let hy2Clash = clash_to_outbound({ type: 'hysteria2', server: 'hy.example.net', port: 443, password: 'pw', sni: 'hy.example.net',
+	up: 100, down: 500, ports: '1000-2000', 'hop-interval': '30s' });
+check(hy2Clash != null && hy2Clash.up_mbps == 100 && hy2Clash.down_mbps == 500, 'clash hysteria2 bandwidth mapped');
+check(hy2Clash != null && length(hy2Clash.server_ports || []) == 1 && hy2Clash.server_ports[0] == '1000:2000', 'clash hysteria2 port hopping mapped');
+check(hy2Clash != null && hy2Clash.hop_interval == '30s', 'clash hysteria2 hop interval mapped');
+
 /* subscription formats */
 let base = parse_body(fixture('base64-sub.txt'), 'auto');
 check(base.ok && length(base.nodes) == 6, 'base64 subscription');
@@ -58,6 +69,54 @@ let jsonSub = parse_body(fixture('singbox-sub.json'), 'auto');
 check(jsonSub.ok && length(jsonSub.nodes) == 1, 'sing-box JSON subscription');
 let html = parse_body(fixture('bad.html'), 'auto');
 check(!html.ok, 'HTML subscription rejected');
+
+/* regression: dirty optional fields and missing credentials in JSON subscriptions */
+let dirtyJson = sprintf('%J', { outbounds: [
+	{ type: 'vmess', tag: 'VM', server: 'vm.example.com', server_port: 443, uuid: '66666666-6666-6666-6666-666666666666',
+		transport: [], multiplex: {}, tls: { enabled: true, server_name: 'vm.example.com' } },
+	{ type: 'vless', tag: 'no-uuid', server: 'nouuid.example.com', server_port: 443, tls: { enabled: true } },
+	{ type: 'trojan', tag: 'no-pass', server: 'nopass.example.com', server_port: 443 },
+	{ type: 'vless', tag: 'WS', server: 'ws.example.com', server_port: 443, uuid: '88888888-8888-8888-8888-888888888888', transport: { type: 'ws', path: '/ws' } },
+	{ type: 'vless', tag: 'Good', server: 'ok.example.com', server_port: 443, uuid: '77777777-7777-7777-7777-777777777777' }
+] });
+let dirtySub = parse_body(dirtyJson, 'auto');
+check(dirtySub.ok && length(dirtySub.nodes) == 3, 'JSON nodes missing credentials skipped');
+function sub_node(list, name) {
+	for (let n in (list || [])) if (n.name == name) return n;
+	return null;
+}
+let dirtyVm = sub_node(dirtySub.nodes, 'VM');
+check(dirtyVm != null && dirtyVm.outbound.transport == null && dirtyVm.outbound.multiplex == null && dirtyVm.outbound.tls != null, 'empty transport/multiplex cleaned from JSON node');
+let dirtyWs = sub_node(dirtySub.nodes, 'WS');
+check(dirtyWs != null && dirtyWs.outbound.transport != null && dirtyWs.outbound.transport.path == '/ws', 'real transport kept in JSON node');
+check(sub_node(dirtySub.nodes, 'Good') != null, 'valid JSON node kept');
+
+/* regression: Clash-style JSON subscriptions go through the same cleaning/credential rules */
+let clashStyleBad = parse_body('{"proxies":[{"type":"trojan","server":"t.example.com","port":443}]}', 'auto');
+check(!clashStyleBad.ok && length(clashStyleBad.nodes) == 0, 'clash-style JSON node missing credentials rejected');
+let clashBadWarn = join('\n', clashStyleBad.warnings);
+check(index(clashBadWarn, '跳过缺少凭据的节点：t.example.com（t.example.com:443）') >= 0, 'clash-style JSON missing credentials reported');
+
+let clashStyleOk = parse_body(sprintf('%J', { proxies: [
+	{ type: 'vmess', name: 'CVM', server: 'cvm.example.com', port: 443, uuid: '99999999-9999-9999-9999-999999999999', cipher: 'auto', transport: [] },
+	{ type: 'ss', name: 'CSS', server: 'css.example.com', port: 8388, cipher: 'aes-256-gcm', password: 'pw' }
+] }), 'auto');
+check(clashStyleOk.ok && length(clashStyleOk.nodes) == 2, 'valid clash-style JSON nodes kept');
+let clashVm = sub_node(clashStyleOk.nodes, 'CVM');
+check(clashVm != null && clashVm.outbound.transport == null, 'clash-style vmess outbound has no transport');
+let clashSs = sub_node(clashStyleOk.nodes, 'CSS');
+check(clashSs != null && clashSs.outbound.method == 'aes-256-gcm' && clashSs.outbound.password == 'pw', 'valid encrypted clash-style ss kept');
+
+/* SS method=none needs no password; encrypted SS still requires one */
+let ssNone = parse_body(sprintf('%J', { proxies: [
+	{ type: 'ss', name: 'SS-NONE', server: 'none.example.com', port: 8388, cipher: 'none' }
+] }), 'auto');
+check(ssNone.ok && length(ssNone.nodes) == 1 && ssNone.nodes[0].name == 'SS-NONE', 'ss method=none without password kept');
+let ssNoPw = parse_body(sprintf('%J', { proxies: [
+	{ type: 'ss', name: 'SS-NOPW', server: 'nopw.example.com', port: 8388, cipher: 'aes-128-gcm' }
+] }), 'auto');
+check(!ssNoPw.ok && length(ssNoPw.nodes) == 0, 'encrypted ss without password skipped');
+check(index(join('\n', ssNoPw.warnings), '跳过缺少凭据的节点：SS-NOPW（nopw.example.com:8388）') >= 0, 'encrypted ss missing password reported');
 
 /* node classification */
 let egress = { us_keywords: '美国,US,USA', jp_keywords: '日本,JP', hk_keywords: '香港,HK', native_keywords: '原生,原生IP,native' };
@@ -83,13 +142,47 @@ let infoCfg = {
 	nodes: [
 		{ '.name': 'info1', enabled: '1', link: 'vless://11111111-1111-1111-1111-111111111111@info.example.com:443?security=tls&sni=info.example.com#剩余流量：348.39 GB' },
 		{ '.name': 'info2', enabled: '1', link: 'vless://11111111-1111-1111-1111-111111111111@info2.example.com:443?security=tls&sni=info2.example.com#如果很少节点可用，去官网更新软件' },
+		{ '.name': 'info3', enabled: '1', link: 'vless://11111111-1111-1111-1111-111111111111@info3.example.com:443?security=tls&sni=info3.example.com#建议每天更新一次订阅' },
 		{ '.name': 'real', enabled: '1', link: 'vless://11111111-1111-1111-1111-111111111111@real.example.com:443?security=tls&sni=real.example.com#美国 洛杉矶 01' }
 	]
 };
 let infoCollected = collect_nodes(infoCfg);
 check(length(infoCollected.nodes) == 1, 'info nodes skipped');
 check(infoCollected.nodes[0] && infoCollected.nodes[0].name == '美国 洛杉矶 01', 'real node kept');
-check(length(infoCollected.warnings) == 2, 'info nodes reported as warnings');
+check(length(infoCollected.warnings) == 3, 'info nodes reported as warnings');
+check(index(join('\n', infoCollected.warnings), '已跳过信息节点：建议每天更新一次订阅') >= 0, 'update-notice info node skipped');
+
+/* regression: subscription entries with info banners / loopback / invalid ports are dropped */
+mkdir_p(PATH.meta_dir);
+write_json(PATH.meta_dir + '/regress_sub.json', { nodes: [
+	{ name: '建议每天更新一次订阅', type: 'vless', server: 'notice.example.com', server_port: 443,
+		outbound: { type: 'vless', server: 'notice.example.com', server_port: 443, uuid: '22222222-2222-2222-2222-222222222222', tls: { enabled: true, server_name: 'notice.example.com' } } },
+	{ name: '本机占位', type: 'vless', server: '127.0.0.1', server_port: 20004,
+		outbound: { type: 'vless', server: '127.0.0.1', server_port: 20004, uuid: '33333333-3333-3333-3333-333333333333', tls: { enabled: true, server_name: 'local' } } },
+	{ name: '端口非法', type: 'vless', server: 'badport.example.com', server_port: 70000,
+		outbound: { type: 'vless', server: 'badport.example.com', server_port: 70000, uuid: '44444444-4444-4444-4444-444444444444', tls: { enabled: true, server_name: 'badport.example.com' } } },
+	{ name: '订阅正常节点', type: 'vless', server: 'sub.example.com', server_port: 443,
+		outbound: { type: 'vless', server: 'sub.example.com', server_port: 443, uuid: '55555555-5555-5555-5555-555555555555', tls: { enabled: true, server_name: 'sub.example.com' } } }
+] });
+let regressCfg = {
+	main: { info_keywords: '' }, egress: egress,
+	subscriptions: [ { '.name': 'regress_sub', name: 'Regress', enabled: '1' } ],
+	nodes: [], node_overrides: []
+};
+let regressCol = collect_nodes(regressCfg);
+let regressWarn = join('\n', regressCol.warnings);
+check(length(regressCol.nodes) == 1 && regressCol.nodes[0].name == '订阅正常节点', 'unusable subscription nodes skipped');
+check(index(regressWarn, '已跳过不可用的订阅节点：本机占位（127.0.0.1:20004）') >= 0, 'loopback subscription node reported');
+check(index(regressWarn, '已跳过不可用的订阅节点：端口非法（badport.example.com:70000）') >= 0, 'invalid subscription port reported');
+check(index(regressWarn, '已跳过信息节点：建议每天更新一次订阅') >= 0, 'subscription update-notice node reported');
+
+/* loopback filtering is subscription-only: a manual local proxy must be kept */
+let localCfg = {
+	main: { info_keywords: '' }, egress: egress, subscriptions: [], node_overrides: [],
+	nodes: [ { '.name': 'local', name: '本机代理', enabled: '1', link: 'vless://11111111-1111-1111-1111-111111111111@127.0.0.1:443?security=tls&sni=local#本机代理' } ]
+};
+let localCol = collect_nodes(localCfg);
+check(length(localCol.nodes) == 1 && localCol.nodes[0].server == '127.0.0.1' && length(localCol.warnings) == 0, 'manual loopback node kept');
 
 /* node overrides: sections written by the LuCI Nodes page */
 let olink = 'vless://11111111-1111-1111-1111-111111111111@us.example.com:443?security=tls&sni=us.example.com#US-LA-01';
@@ -198,16 +291,145 @@ if (gen.ok) {
 	check(customTag && customTarget, 'custom egress tag matches UCI section target');
 }
 
+/* tailscale endpoint (sing-box 1.14, gVisor build) */
+function ts_base(ts) {
+	return {
+		main: { log_level: 'info' },
+		inbound: { address: '172.19.0.1/30,fdfe:dcba:9876::1/126', mtu: '9000', strict_route: '0', exclude_cn: '1' },
+		dns: { mode: 'split', strategy: 'prefer_ipv4' },
+		egress: { default_group: 'auto' },
+		tailscale: ts || {},
+		rulesets: [], egress_groups: [], subscriptions: [], nodes: [], node_overrides: []
+	};
+}
+let tsOff = build_config(ts_base({ enabled: '0', auth_key: 'tskey-auth-x' }), { nodes: nodes, warnings: [] });
+check(tsOff.ok && tsOff.config.endpoints == null, 'tailscale disabled emits no endpoints');
+let tsOffDns = false;
+for (let ds in tsOff.config.dns.servers) if (ds.type == 'tailscale') tsOffDns = true;
+check(!tsOffDns, 'tailscale disabled emits no tailscale DNS server');
+
+let tsOn = build_config(ts_base({
+	enabled: '1', auth_key: 'tskey-auth-abc', hostname: 'openwrt-router',
+	accept_routes: '1', advertise_routes: '192.168.1.0/24, 10.10.0.0/16',
+	advertise_exit_node: '1'
+}), { nodes: nodes, warnings: [] });
+check(tsOn.ok && length(tsOn.config.endpoints) == 1, 'tailscale enabled emits one endpoint');
+if (tsOn.ok) {
+	let ep = tsOn.config.endpoints[0];
+	check(ep.type == 'tailscale' && ep.tag == 'ts-ep', 'tailscale endpoint type/tag');
+	check(ep.state_directory == PATH.etc + '/tailscale', 'tailscale default state directory');
+	check(ep.domain_resolver == 'dns-direct' && ep.detour == 'direct-dns', 'tailscale control traffic bypasses the proxy');
+	check(ep.auth_key == 'tskey-auth-abc' && ep.hostname == 'openwrt-router', 'tailscale auth key and hostname');
+	check(ep.accept_routes === true && length(ep.advertise_routes) == 2 && ep.advertise_routes[1] == '10.10.0.0/16', 'tailscale accept/advertise routes');
+	check(ep.advertise_exit_node === true, 'tailscale advertise exit node');
+	let route = tsOn.config.route.rules;
+	let preferred = -1, privateRule = -1;
+	for (let i = 0; i < length(route); i++) {
+		if (route[i].preferred_by && route[i].preferred_by[0] == 'ts-ep') preferred = i;
+		if (route[i].ip_is_private) privateRule = i;
+	}
+	check(preferred >= 0 && privateRule >= 0 && preferred < privateRule, 'tailnet rule precedes private-IP direct rule');
+	check(tsOn.config.route.final == 'default', 'default egress stays the proxy unless an exit node is the default');
+	let tsDns = null;
+	for (let ds in tsOn.config.dns.servers) if (ds.type == 'tailscale') tsDns = ds;
+	check(tsDns != null && tsDns.tag == 'dns-ts' && tsDns.endpoint == 'ts-ep' && tsDns.accept_default_resolvers === true, 'tailscale DNS server references the endpoint');
+	check(tsOn.config.dns.rules[0].preferred_by && tsOn.config.dns.rules[0].server == 'dns-ts', 'MagicDNS rule first in DNS rules');
+}
+
+let tsExit = build_config(ts_base({
+	enabled: '1', auth_key: 'k', exit_node: 'vps-exit', exit_node_allow_lan_access: '1', exit_node_default: '1'
+}), { nodes: nodes, warnings: [] });
+check(tsExit.ok && tsExit.config.endpoints[0].exit_node == 'vps-exit' && tsExit.config.endpoints[0].exit_node_allow_lan_access === true, 'tailscale exit node and LAN access');
+check(tsExit.ok && tsExit.config.route.final == 'ts-ep', 'default egress can be the tailscale exit node');
+
+let tsExitNoNode = build_config(ts_base({ enabled: '1', auth_key: 'k', exit_node_default: '1' }), { nodes: nodes, warnings: [] });
+check(tsExitNoNode.ok && tsExitNoNode.config.route.final == 'default', 'exit-node default without a node is ignored');
+check(index(join('\n', tsExitNoNode.warnings), '已忽略') >= 0, 'ignored exit-node default is reported');
+
+let tsNoKey = build_config(ts_base({ enabled: '1' }), { nodes: nodes, warnings: [] });
+check(tsNoKey.ok && tsNoKey.config.endpoints[0].auth_key == null, 'tailscale without auth_key omits the field');
+check(index(join('\n', tsNoKey.warnings), 'auth_key') >= 0, 'tailscale without auth_key warns about interactive login');
+
+let tsBadRoute = build_config(ts_base({ enabled: '1', auth_key: 'k', advertise_routes: '0.0.0.0/0' }), { nodes: nodes, warnings: [] });
+check(!tsBadRoute.ok && index(join('\n', tsBadRoute.errors), 'advertise_exit_node') >= 0, 'default route in advertise_routes rejected');
+let tsBadCidr = build_config(ts_base({ enabled: '1', auth_key: 'k', advertise_routes: 'not-a-cidr' }), { nodes: nodes, warnings: [] });
+check(!tsBadCidr.ok && index(join('\n', tsBadCidr.errors), 'not-a-cidr') >= 0, 'invalid advertise route rejected');
+
+let tsRel = build_config(ts_base({ enabled: '1', auth_key: 'k', state_directory: 'ts-state' }), { nodes: nodes, warnings: [] });
+check(tsRel.ok && tsRel.config.endpoints[0].state_directory == PATH.etc + '/ts-state', 'relative state directory resolves under etc');
+
+let tsProxyDns = ts_base({ enabled: '1', auth_key: 'k' });
+tsProxyDns.dns.mode = 'proxy';
+let tsProxy = build_config(tsProxyDns, { nodes: nodes, warnings: [] });
+check(tsProxy.ok && length(tsProxy.config.dns.rules) == 1 && tsProxy.config.dns.rules[0].preferred_by, 'proxy DNS mode keeps the MagicDNS rule');
+
+let tsSystemCfg = ts_base({ enabled: '1', auth_key: 'k' });
+tsSystemCfg.dns.mode = 'system';
+let tsSystem = build_config(tsSystemCfg, { nodes: nodes, warnings: [] });
+let tsSystemDns = false;
+for (let ds in tsSystem.config.dns.servers) if (ds.type == 'tailscale') tsSystemDns = true;
+check(tsSystem.ok && !tsSystemDns && length(tsSystem.config.dns.rules) == 0, 'system DNS mode omits the tailscale DNS server');
+check(index(join('\n', tsSystem.warnings), 'MagicDNS') >= 0, 'system DNS mode warns about MagicDNS');
+
 /* rule set resolution */
 let rcfg = { rulesets: [], egress_groups: [] };
 let rr = resolve_rulesets(rcfg);
 check(length(rr.errors) == 0 && length(rr.rules) == 6, 'six built-in rule sets resolve from bundle');
 check(rr.rules[0].target == 'direct', 'built-in CN target direct');
+let cnAiDomains = rr.rules[0].inline.domain_suffix || [];
+check(index(cnAiDomains, 'deepseek.com') >= 0 && index(cnAiDomains, 'moonshot.cn') >= 0, 'CN AI rule set keeps parent domains');
+check(index(cnAiDomains, 'chat.deepseek.com') < 0 && index(cnAiDomains, 'kimi.moonshot.cn') < 0, 'CN AI rule set drops subdomains covered by parents');
 
 /* core helpers */
 check(arch_asset('x86_64') == 'amd64-musl', 'arch x86_64');
 check(arch_asset('aarch64_cortex-a53') == 'arm64-musl', 'arch aarch64');
 check(version_ge('1.14.4', '1.14.4') && !version_ge('1.13.21', '1.14.4'), 'version comparison');
+
+/* regression: config migration for newer cores only removes fields the target version dropped */
+function migrate_fixture() {
+	return {
+		log: { level: 'info' },
+		experimental: {
+			cache_file: { enabled: true, store_rdrc: true, rdrc_timeout: '1m', store_dns: true, path: '/tmp/singbox-cache.db' }
+		},
+		dns: {
+			servers: [ { type: 'udp', server: '1.1.1.1', tag: 'dns-direct' } ],
+			rules: [
+				{ domain_suffix: [ '.example.com' ], server: 'dns-direct', strategy: 'prefer_ipv4' },
+				{ domain: [ 'only.example.net' ], server: 'dns-proxy' }
+			]
+		},
+		inbounds: [ { type: 'tun', tag: 'tun-in', stack: 'system', auto_route: true } ],
+		outbounds: [ { type: 'direct', tag: 'direct' } ]
+	};
+}
+let mig115Cfg = migrate_fixture();
+let mig115Before = sprintf('%J', mig115Cfg);
+let mig115 = migrate_config_for_core(mig115Cfg, '1.15.0');
+check(length(mig115.changes) == 0 && sprintf('%J', mig115.config) == mig115Before, 'core migration leaves config untouched on 1.15');
+let mig16Cfg = migrate_fixture();
+let mig16 = migrate_config_for_core(mig16Cfg, '1.16.0');
+let mig16Cache = mig16.config.experimental.cache_file;
+check(length(mig16.changes) == 3, 'core migration reports three 1.16 changes');
+check(mig16Cache.rdrc_timeout == null && mig16Cache.store_rdrc == null, 'core migration drops 1.16 cache rdrc fields');
+check(mig16.config.dns.rules[0].strategy == null && mig16.config.dns.rules[0].server == 'dns-direct', 'core migration drops dns rule strategy only');
+check(mig16.config.inbounds[0].stack == 'system', 'core migration keeps tun stack on 1.16');
+check(mig16Cache.enabled == true && mig16Cache.store_dns == true && mig16Cache.path == '/tmp/singbox-cache.db', 'core migration keeps neighbouring cache fields');
+check(mig16.config.dns.rules[1].server == 'dns-proxy' && length(mig16.config.dns.rules) == 2, 'core migration keeps neighbouring dns rules');
+let mig17Cfg = migrate_fixture();
+let mig17 = migrate_config_for_core(mig17Cfg, '1.17.0');
+check(mig17.config.inbounds[0].stack == null, 'core migration drops tun stack on 1.17');
+check(mig17.config.experimental.cache_file.rdrc_timeout == null && mig17.config.dns.rules[0].strategy == null, 'core migration applies 1.16 rules on 1.17');
+check(length(mig17.changes) == 4, 'core migration reports four changes on 1.17');
+check(mig17.config.inbounds[0].auto_route == true && length(mig17.config.inbounds) == 1, 'core migration keeps tun neighbours on 1.17');
+let plainCfg = { log: { level: 'info' }, experimental: { cache_file: { enabled: true } }, dns: { servers: [] }, inbounds: [ { type: 'tun', tag: 'tun-in' } ] };
+let plainBefore = sprintf('%J', plainCfg);
+let migPlain = migrate_config_for_core(plainCfg, '1.17.0');
+check(length(migPlain.changes) == 0 && sprintf('%J', migPlain.config) == plainBefore, 'core migration no-op without legacy fields');
+let migNoVersion = migrate_config_for_core(migrate_fixture(), '');
+check(length(migNoVersion.changes) == 0, 'core migration no-op without target version');
+let migNull = migrate_config_for_core(null, '1.17.0');
+check(length(migNull.changes) == 0 && migNull.config == null, 'core migration tolerates non-object config');
 
 /* release listing and plugin version helpers */
 let releases = parse_tags('[{"tag_name":"v1.14.4","draft":false,"prerelease":false},{"tag_name":"v1.15.0-alpha.1","prerelease":true},{"tag_name":"v1.14.4"},{"tag_name":""}]', 10);

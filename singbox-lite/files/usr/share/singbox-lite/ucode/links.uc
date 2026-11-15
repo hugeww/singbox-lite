@@ -286,6 +286,87 @@ function parse_ss(link, u) {
 	return mk_node('shadowsocks', fragment || u.name, u.host, u.port || 8388, out, []);
 }
 
+/* ---------- Hysteria2 带宽 / 端口跳跃 ---------- */
+
+function scalar_text(v) {
+	if (v == null) return '';
+	if (type(v) == 'string') return v;
+	if (type(v) == 'bool') return v ? 'true' : 'false';
+	if (type(v) == 'int' || type(v) == 'double') return sprintf('%s', v);
+	return '';
+}
+
+function param_blank(v) {
+	if (v == null) return true;
+	if (type(v) == 'array') return !length(v);
+	if (type(v) == 'object') return !length(keys(v));
+	return !length(trim(scalar_text(v)));
+}
+
+/*
+ * Hysteria2 的带宽与端口跳跃在 URI 和 Clash YAML 里命名不统一：URI 常见
+ * upmbps/downmbps/mport，Clash 常见 up/down/ports，另有下划线写法。这里按
+ * 候选名大小写不敏感地取第一个非空值，返回原始值（字符串/整数/数组）。
+ */
+function param_value(params, names) {
+	if (params == null || type(params) != 'object') return null;
+	for (let name in names) {
+		if (!param_blank(params[name])) return params[name];
+	}
+	for (let k in keys(params)) {
+		for (let name in names) {
+			if (lc2(k) != lc2(name)) continue;
+			if (!param_blank(params[k])) return params[k];
+		}
+	}
+	return null;
+}
+
+/* 带宽只接受正整数 Mbps（100 / "100" / "100 Mbps" 都行），无效或 <=0 不写字段。 */
+function positive_int(v) {
+	let n = int(trim(scalar_text(v)));
+	return n > 0 ? n : 0;
+}
+
+/*
+ * 端口跳跃范围统一成 sing-box 的 "起始:结束" 字符串数组。sing-quic 的
+ * ParsePorts 要求每一项都必须带 ":"，裸单端口（如 "443"）会被当成非法范围
+ * 让节点起不来，所以单端口补成 "443:443"。"1000-2000" / "1000:2000" /
+ * 逗号分隔多段都接受；非数字、越界（>65535）或起止颠倒的段直接丢弃，
+ * 避免生成过不了校验的配置。
+ */
+function port_ranges(v) {
+	if (type(v) == 'array') {
+		let out = [];
+		for (let x in v)
+			for (let y in port_ranges(x)) push(out, y);
+		return out;
+	}
+	let out = [];
+	for (let part in split(replace(trim(scalar_text(v)), /\s+/g, ''), ',')) {
+		let m = match(replace(part, /-/g, ':'), /^(\d{1,5})(:(\d{1,5}))?$/);
+		if (m == null) continue;
+		let lo = int(m[1]);
+		let hi = m[3] == null ? lo : int(m[3]);
+		if (lo < 1 || hi < lo || hi > 65535) continue;
+		push(out, sprintf('%d:%d', lo, hi));
+	}
+	return out;
+}
+
+/*
+ * hop_interval 是 Go 时长字符串：URI 一般自带单位（30s），Clash 写的是秒数
+ * （30）或秒数区间（15-30）。纯数字补上 "s"，区间取下限（sing-box 的
+ * hop_interval_max 不在本次映射范围内），已带单位的原样保留。
+ */
+function hop_interval_text(v) {
+	let s = replace(trim(scalar_text(v)), /\s+/g, '');
+	if (!length(s)) return '';
+	let m = match(s, /^(\d+)(-\d+)?$/);
+	if (m != null) return m[1] + 's';
+	return s;
+}
+
 function parse_hysteria2(u) {
 	if (!length(u.userinfo)) return { ok: false, error: 'hysteria2 missing password' };
 	let p = u.params;
@@ -299,6 +380,16 @@ function parse_hysteria2(u) {
 	if (length(p.obfs)) {
 		out.obfs = { type: p.obfs, password: p['obfs-password'] || '' };
 	}
+	/* 带宽：URI 里常见 upmbps/downmbps，也接受 up/down 别名。 */
+	let up = positive_int(param_value(p, [ 'upmbps', 'up-mbps', 'up_mbps', 'up' ]));
+	if (up > 0) out.up_mbps = up;
+	let down = positive_int(param_value(p, [ 'downmbps', 'down-mbps', 'down_mbps', 'down' ]));
+	if (down > 0) out.down_mbps = down;
+	/* 端口跳跃：mport 是 Hysteria2 分享链接的事实标准写法，ports 为兼容别名。 */
+	let ports = port_ranges(param_value(p, [ 'mport', 'ports', 'server_ports', 'server-ports' ]));
+	if (length(ports)) out.server_ports = ports;
+	let hop = hop_interval_text(param_value(p, [ 'hop-interval', 'hop_interval', 'hopinterval' ]));
+	if (length(hop)) out.hop_interval = hop;
 	return mk_node('hysteria2', u.name, u.host, u.port || 443, out, []);
 }
 
@@ -505,6 +596,15 @@ function clash_to_outbound(p) {
 		out.password = p.password || p.auth;
 		out.tls = clash_tls(p, server, true);
 		if (p.obfs) out.obfs = { type: p.obfs, password: p['obfs-password'] || '' };
+		/* mihomo: up/down 是 "100 Mbps" 或数字的带宽，ports 是端口跳跃范围。 */
+		let up = positive_int(param_value(p, [ 'up', 'up-mbps', 'up_mbps', 'upmbps' ]));
+		if (up > 0) out.up_mbps = up;
+		let down = positive_int(param_value(p, [ 'down', 'down-mbps', 'down_mbps', 'downmbps' ]));
+		if (down > 0) out.down_mbps = down;
+		let ports = port_ranges(param_value(p, [ 'ports', 'port-hopping', 'server_ports', 'server-ports', 'mport' ]));
+		if (length(ports)) out.server_ports = ports;
+		let hop = hop_interval_text(param_value(p, [ 'hop-interval', 'hop_interval', 'hopinterval' ]));
+		if (length(hop)) out.hop_interval = hop;
 	} else if (t == 'tuic') {
 		out.type = 'tuic';
 		out.uuid = p.uuid;

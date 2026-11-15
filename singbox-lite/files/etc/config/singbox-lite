@@ -21,6 +21,18 @@ config dns 'dns'
 	option mode 'split'
 	option strategy 'prefer_ipv4'
 
+config tailscale 'tailscale'
+	option enabled '0'
+	option auth_key ''
+	option hostname ''
+	option state_directory '/etc/singbox-lite/tailscale'
+	option accept_routes '0'
+	option advertise_routes ''
+	option advertise_exit_node '0'
+	option exit_node ''
+	option exit_node_allow_lan_access '0'
+	option exit_node_default '0'
+
 config version 'version'
 	option plugin_tag ''
 

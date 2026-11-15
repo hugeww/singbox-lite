@@ -15,7 +15,7 @@ const DEFAULT_NATIVE = '原生,原生IP,native,家宽,住宅,residential';
  * 机场常把「剩余流量」「到期时间」「去官网更新」这类信息条目伪装成节点塞进订阅，
  * 它们连不上，只会在面板/分组里占位。命中这些关键词的条目直接跳过。
  */
-const DEFAULT_INFO_KEYWORDS = '剩余流量,流量剩余,到期时间,过期时间,下次重置,重置时间,套餐,官网,客服,公告';
+const DEFAULT_INFO_KEYWORDS = '剩余流量,流量剩余,到期时间,过期时间,下次重置,重置时间,套餐,官网,客服,公告,建议每天更新,更新订阅,订阅到期,续费,购买';
 
 function regexp_escape(s) {
 	let out = '';
@@ -167,6 +167,18 @@ function node_tag(name, id) {
 	return (length(label) ? label : 'node') + ' [' + id + ']';
 }
 
+/*
+ * 订阅里有的条目 server 指向本机回环（127.0.0.1:20004 之类），连不通，
+ * 只会在 auto/other 分组里占位；只对订阅来源生效，手工节点允许回环。
+ */
+function is_loopback_host(host) {
+	host = lc(trim(host || ''));
+	if (!length(host)) return false;
+	if (host == '127.0.0.1' || host == '::1' || host == '0.0.0.0' || host == 'localhost') return true;
+	/* 只匹配 IPv4 回环数字，避免把 127.example.com 这类域名误判成回环。 */
+	return match(host, /^127\.[0-9.]+$/) != null;
+}
+
 function is_info_node(name, cfg) {
 	let keywords = split_csv((cfg && cfg.main && cfg.main.info_keywords) || DEFAULT_INFO_KEYWORDS);
 	for (let kw in keywords)
@@ -191,6 +203,19 @@ function collect_nodes(cfg) {
 	function add_candidate(raw, source, source_name) {
 		if (!raw || !raw.outbound) return;
 		let outbound = raw.outbound;
+		let name = trim(raw.name || outbound.server || 'node');
+		/*
+		 * 订阅条目会把信息横幅伪装成节点（server 指向 127.0.0.1:20004），
+		 * 名字不一定命中关键词，这里按 server/端口兜底；手工节点不限制回环。
+		 */
+		if (source && substr(source, 0, 13) == 'subscription:') {
+			let server = trim(raw.server || outbound.server || '');
+			let port = int(raw.server_port || outbound.server_port || 0);
+			if (!length(server) || is_loopback_host(server) || port < 1 || port > 65535) {
+				push(warnings, sprintf('已跳过不可用的订阅节点：%s（%s:%d）', name, server, port));
+				return;
+			}
+		}
 		let fingerprint = node_fingerprint(outbound);
 		if (seen[fingerprint]) {
 			push(warnings, sprintf('重复节点已跳过：%s（来源 %s）', raw.name || outbound.server, source_name));
@@ -199,7 +224,6 @@ function collect_nodes(cfg) {
 		let legacy_id = legacy_fingerprint(outbound);
 		let ov = overrides[override_key(fingerprint)] || overrides[override_key(legacy_id)] || {};
 		if (ov.enabled == '0') return;
-		let name = trim(raw.name || outbound.server || 'node');
 		if (is_info_node(name, cfg)) {
 			push(warnings, sprintf('已跳过信息节点：%s', name));
 			return;
@@ -295,4 +319,4 @@ function find_node(nodes, id) {
 	return null;
 }
 
-export { classify_country, is_native, node_fingerprint, legacy_fingerprint, node_tag, override_key, collect_nodes, group_nodes, find_node };
+export { classify_country, is_native, is_loopback_host, node_fingerprint, legacy_fingerprint, node_tag, override_key, collect_nodes, group_nodes, find_node };

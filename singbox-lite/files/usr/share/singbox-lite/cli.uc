@@ -1,6 +1,6 @@
 'use strict';
 
-import { trim, read_text, read_json, write_text, write_json, mkdir_p, file_exists, run_capture, now_string, human_size, sh_quote, PATH, VERSION, split_lines } from 'sbx_common';
+import { trim, read_text, read_json, write_text, write_json, mkdir_p, file_exists, run_capture, now_string, human_size, sh_quote, log_app, PATH, VERSION, split_lines } from 'sbx_common';
 import { load_config, uci_set, uci_commit } from 'sbx_config';
 import { collect_nodes, group_nodes } from 'sbx_nodes';
 import { build_config } from 'sbx_generator';
@@ -19,6 +19,8 @@ import { parse_link } from 'sbx_links';
    "<pid> <epoch>" so a crashed run can be detected and stolen safely. */
 const LOCK_WAIT_SECONDS = 10;
 const LOCK_STALE_SECONDS = 30 * 60;
+/* 状态/日志中 detail 的最大长度：足够定位问题，又不会把 JSON 或 app.log 撑爆。 */
+const POST_UPGRADE_DETAIL_LIMIT = 2000;
 
 function output(obj) {
 	print(sprintf('%J', obj));
@@ -212,6 +214,207 @@ function restore_config_backup() {
 	return true;
 }
 
+function ensure_panel_secret(cfg) {
+	if (!cfg.panel) cfg.panel = {};
+	if (cfg.panel.enabled != '1') return false;
+	if (length(trim(cfg.panel.secret || ''))) return false;
+	let secret = random_secret();
+	cfg.panel.secret = secret;
+	if (getenv('SINGBOX_LITE_CONFIG_JSON') == null) {
+		uci_set('panel', 'secret', secret);
+		uci_commit();
+	}
+	return true;
+}
+
+function truncate_detail(text, limit) {
+	text = trim(text == null ? '' : sprintf('%s', text));
+	let max = int(limit || POST_UPGRADE_DETAIL_LIMIT);
+	if (max < 1) max = POST_UPGRADE_DETAIL_LIMIT;
+	if (length(text) <= max) return text;
+	/* 不要从 UTF-8 多字节字符中间截断，避免写出的 JSON 不是合法 UTF-8。 */
+	let n = max;
+	let b = ord(substr(text, n - 1, 1));
+	if (b >= 0x80) {
+		let i = n - 1;
+		while (i >= 0 && (ord(substr(text, i, 1)) & 0xc0) == 0x80) i--;
+		if (i >= 0) {
+			b = ord(substr(text, i, 1));
+			let need = b < 0xe0 ? 2 : (b < 0xf0 ? 3 : 4);
+			if (i + need > n) n = i;
+		}
+	}
+	return substr(text, 0, n);
+}
+
+function write_post_upgrade_status(obj) {
+	let status = { updated: now_string() };
+	for (let k in keys(obj || {})) status[k] = obj[k];
+	if (status.detail != null) status.detail = truncate_detail(status.detail);
+	/* postinst may call this before anything else created /tmp/singbox-lite. */
+	mkdir_p(PATH.run_dir);
+	write_json(PATH.post_upgrade_status, status, 384);
+	return status;
+}
+
+function post_upgrade_fail(error, detail, extra) {
+	let status = { state: 'error', ok: false, error: error };
+	if (length(trim(detail == null ? '' : sprintf('%s', detail)))) status.detail = detail;
+	for (let k in keys(extra || {})) status[k] = extra[k];
+	status = write_post_upgrade_status(status);
+	let message = '插件升级后自动重建配置失败：' + error;
+	if (length(status.detail || '')) message += '；' + status.detail;
+	log_app(truncate_detail(message));
+	return status;
+}
+
+function restart_service() {
+	let r = run_capture(sh_quote(PATH.init) + ' restart 2>&1');
+	sleep(3);
+	return { ok: r.ok && service_running(), rc: r.rc, out: trim(r.out == null ? '' : r.out) };
+}
+
+function core_log_tail(max_bytes) {
+	let file = PATH.log_dir + '/core.log';
+	if (!file_exists(file)) return '';
+	let r = run_capture('tail -c ' + int(max_bytes || 4096) + ' ' + sh_quote(file) + ' 2>/dev/null');
+	return trim(r.out == null ? '' : r.out);
+}
+
+/*
+ * 插件包升级后基于当前 UCI/meta 重建 config.json：生成 → 校验 → 按
+ * auto_apply 决定是否重启（失败回滚）。首装或缺少核心时只写 skipped，
+ * 绝不在这里下载核心/面板/订阅；下载必须由用户在 LuCI 里手动触发。
+ */
+function cmd_post_upgrade(cfg, opts) {
+	opts = opts || {};
+	if (!file_exists(PATH.config_json))
+		return write_post_upgrade_status({ state: 'skipped', ok: true, skipped: 'first-install' });
+	let core = check_core(cfg);
+	if (!core.ok)
+		return write_post_upgrade_status({
+			state: 'skipped', ok: true, skipped: 'no-core',
+			hint: (core.error || '未找到可用的 sing-box 核心') + '；升级不会自动下载核心，请在 LuCI 中手动下载/更新'
+		});
+	ensure_panel_secret(cfg);
+	let gen = generate(cfg);
+	if (!gen.ok) {
+		let errors = [];
+		for (let e in gen.errors || []) push(errors, sprintf('%s', e));
+		return post_upgrade_fail('配置生成失败', join('; ', errors));
+	}
+	let saved = save_config(cfg, gen);
+	if (!saved.ok)
+		return post_upgrade_fail(saved.error || '配置校验失败', saved.detail || '');
+
+	let status = { state: 'done', ok: true, changed: saved.changed === true, restarted: false };
+	if (!status.changed)
+		return write_post_upgrade_status(status);
+
+	let auto_apply = (cfg.main || {}).auto_apply != '0';
+	if (opts['no-restart'] != true && auto_apply && service_running()) {
+		let first = restart_service();
+		if (first.ok) {
+			status.restarted = true;
+			return write_post_upgrade_status(status);
+		}
+		/* 新配置起不来：回到上一份经过校验的配置，再重启一次。 */
+		let detail = '首次重启失败（rc=' + int(first.rc || 0) +
+			(length(first.out) ? '，输出：' + truncate_detail(first.out, 500) : '') + '）';
+		let rolled_back = false;
+		if (restore_config_backup()) {
+			let second = restart_service();
+			detail += '；已回滚配置并再次重启' + (second.ok ? '成功' : '失败') +
+				'（rc=' + int(second.rc || 0) +
+				(length(second.out) ? '，输出：' + truncate_detail(second.out, 500) : '') + '）';
+			rolled_back = second.ok;
+		} else {
+			detail += '；没有可回滚的配置备份';
+		}
+		let tail = truncate_detail(core_log_tail(4096), 500);
+		if (length(tail)) detail += '；核心日志尾部：' + tail;
+		return post_upgrade_fail(
+			'自动重建配置后重启失败' + (rolled_back ? '，已回滚到上一份配置' : ''),
+			detail, { changed: true, restarted: false, rolled_back: rolled_back }
+		);
+	}
+	return write_post_upgrade_status(status);
+}
+
+/*
+ * update-plugin 全程持有 CLI 锁。apk 安装完成后，本进程仍是升级前的旧代码，
+ * 因此不能在同进程里重建 JSON（会继续用旧 generator）。这里先以 no_done
+ * 完成安装/UCI 恢复，再释放锁，用新安装的 PATH.cli 子进程执行
+ * `post-upgrade --json`（新代码自己拿锁重建、校验、按 auto_apply 重启），
+ * 读回结果后重新拿锁并写 plugin-update.json 的 done。
+ */
+function cmd_update_plugin(cfg, opts) {
+	let update_opts = {};
+	for (let k in keys(opts || {})) update_opts[k] = opts[k];
+	update_opts.no_done = true;
+	let result = update_plugin(cfg, update_opts);
+	if (!result.ok) return result;
+
+	let post = null;
+	let degraded = '';
+	if (lock_release()) {
+		/* New CLI: freshly installed code, handles the lock itself. */
+		let run = run_capture(sh_quote(PATH.cli) + ' post-upgrade --json 2>&1');
+		let out = trim(run.out == null ? '' : run.out);
+		if (length(out)) {
+			try {
+				let parsed = json(out);
+				if (type(parsed) == 'object' && parsed != null && parsed.state != null)
+					post = parsed;
+			} catch (e) {}
+		}
+		if (post == null) {
+			let file_status = read_json(PATH.post_upgrade_status, null);
+			if (type(file_status) == 'object' && file_status != null && file_status.state != null)
+				post = file_status;
+		}
+		if (post == null) {
+			post = {
+				state: 'error', ok: false, error: '配置重建失败',
+				detail: length(out) ? out : ('新 CLI 执行失败，退出码 ' + int(run.rc || 0))
+			};
+			try { post = write_post_upgrade_status(post); } catch (e) {}
+		}
+		/* main() releases the lock again on exit; take it back so that release
+		   can only remove our own lock, never a concurrent operation's. */
+		let relock = lock_acquire();
+		if (!relock.ok) {
+			degraded = '重新获取 CLI 锁失败：' + (relock.error || 'unknown');
+			log_app('插件自更新重建后' + degraded);
+		}
+	} else {
+		/* Should not happen; do not spawn the new CLI (it would hit our lock).
+		   Fall back to the old in-process rebuild and report the degradation. */
+		let fresh = cfg;
+		try { fresh = load_config(); } catch (e) { fresh = cfg; }
+		try {
+			post = cmd_post_upgrade(fresh, {});
+		} catch (e) {
+			post = { state: 'error', ok: false, error: '配置重建异常', detail: sprintf('%s', e) };
+			try { post = write_post_upgrade_status(post); } catch (e2) {}
+		}
+		degraded = '无法释放 CLI 锁，已回退到旧进程重建（未调用新 CLI）';
+		log_app('插件自更新后' + degraded);
+	}
+
+	mkdir_p(PATH.run_dir);
+	let status = {
+		state: 'done', updated: now_string(),
+		version: result.version, tag: result.tag, restored: result.restored,
+		config: post
+	};
+	if (length(degraded)) status.degraded = degraded;
+	write_json(PATH.plugin_update_status, status, 384);
+	result.config = post;
+	if (length(degraded)) result.degraded = degraded;
+	return result;
+}
+
 function sync_cron(cfg) {
 	if (getenv('SINGBOX_LITE_CONFIG_JSON') != null)
 		return;
@@ -236,18 +439,6 @@ function sync_cron(cfg) {
 	for (let line in out) text += line + '\n';
 	write_text(PATH.cron_file, text, 384);
 	run_capture('/etc/init.d/cron reload >/dev/null 2>&1 || true');
-}
-function ensure_panel_secret(cfg) {
-	if (!cfg.panel) cfg.panel = {};
-	if (cfg.panel.enabled != '1') return false;
-	if (length(trim(cfg.panel.secret || ''))) return false;
-	let secret = random_secret();
-	cfg.panel.secret = secret;
-	if (getenv('SINGBOX_LITE_CONFIG_JSON') == null) {
-		uci_set('panel', 'secret', secret);
-		uci_commit();
-	}
-	return true;
 }
 
 function cmd_check(cfg) {
@@ -351,6 +542,35 @@ function cmd_refresh(cfg, opts) {
 	return status;
 }
 
+function tailscale_status(cfg) {
+	let ts = cfg.tailscale || {};
+	let enabled = ts.enabled == '1';
+	let in_config = false, in_active = false;
+	if (file_exists(PATH.config_json))
+		in_config = match(read_text(PATH.config_json, ''), /"type":[ \t]*"tailscale"/) != null;
+	let active = PATH.etc + '/active.json';
+	if (file_exists(active))
+		in_active = match(read_text(active, ''), /"type":[ \t]*"tailscale"/) != null;
+	/*
+	 * Without auth_key sing-box prints the interactive login URL and waits.
+	 * Surface the last one from the core log so the LuCI page can link it
+	 * instead of making the user dig through Logs.
+	 */
+	let auth_url = '';
+	let log = PATH.log_dir + '/core.log';
+	if (file_exists(log)) {
+		let r = run_capture('tail -c 262144 ' + sh_quote(log) + ' 2>/dev/null');
+		let rest = r.out || '';
+		while (length(rest)) {
+			let m = match(rest, /Waiting for authentication: (https?:\/\/[^ \t\r\n"']+)/);
+			if (!m) break;
+			auth_url = m[1];
+			rest = substr(rest, index(rest, m[0]) + length(m[0]));
+		}
+	}
+	return { enabled: enabled, in_config: in_config, in_active: in_active, auth_url: auth_url };
+}
+
 function cmd_status(cfg) {
 	let collected = collect_nodes(cfg);
 	let groups = group_nodes(collected.nodes);
@@ -381,6 +601,7 @@ function cmd_status(cfg) {
 			other: length(groups.other), native: length(groups.native), auto: length(groups.auto)
 		},
 		subscriptions: subs, node_list: node_list, warnings: collected.warnings,
+		tailscale: tailscale_status(cfg),
 		last_refresh: read_json(PATH.refresh_status, null)
 	};
 }
@@ -428,7 +649,7 @@ function dispatch(argv) {
 	let cfg = null;
 	try {
 		if (cmd == 'version') return { ok: true, version: VERSION };
-		if (cmd == 'help') return { ok: true, commands: [ 'preview', 'check', 'build', 'refresh', 'status', 'update-rulesets', 'update-core', 'update-plugin', 'core-check', 'core-rollback', 'plugin-status', 'plugin-check', 'release-scan', 'panel-status', 'panel-proxies', 'panel-connections', 'panel-select', 'panel-delay', 'panel-close', 'panel-secret', 'dashboard-status', 'update-dashboard', 'parse-link', 'log' ] };
+		if (cmd == 'help') return { ok: true, commands: [ 'preview', 'check', 'build', 'post-upgrade', 'refresh', 'status', 'update-rulesets', 'update-core', 'update-plugin', 'core-check', 'core-rollback', 'plugin-status', 'plugin-check', 'release-scan', 'panel-status', 'panel-proxies', 'panel-connections', 'panel-select', 'panel-delay', 'panel-close', 'panel-secret', 'dashboard-status', 'update-dashboard', 'parse-link', 'log' ] };
 		if (cmd == 'parse-link') {
 			let p = parse_link(opts._[0] || '');
 			return p;
@@ -447,7 +668,7 @@ function dispatch(argv) {
 		cfg = load_config();
 		if (cmd == 'plugin-check') return plugin_check(cfg);
 		if (cmd == 'release-scan') return cmd_release_scan(cfg);
-		if (cmd == 'update-plugin') return update_plugin(cfg, opts);
+		if (cmd == 'update-plugin') return cmd_update_plugin(cfg, opts);
 		if (cmd == 'panel-status') return panel_status(cfg);
 		if (cmd == 'dashboard-status') return dashboard_status(cfg);
 		if (cmd == 'update-dashboard') return update_dashboard(cfg, opts);
@@ -471,6 +692,7 @@ function dispatch(argv) {
 		}
 		if (cmd == 'check') return cmd_check(cfg);
 		if (cmd == 'build') return cmd_build(cfg, opts);
+		if (cmd == 'post-upgrade') return cmd_post_upgrade(cfg, opts);
 		if (cmd == 'refresh') return cmd_refresh(cfg, opts);
 		if (cmd == 'status') return cmd_status(cfg);
 		if (cmd == 'update-rulesets') return cmd_update_rulesets(cfg, opts);
@@ -483,7 +705,7 @@ function dispatch(argv) {
 }
 
 const MUTATING_COMMANDS = {
-	build: true, check: true, refresh: true,
+	build: true, check: true, refresh: true, 'post-upgrade': true,
 	'update-core': true, 'update-plugin': true, 'update-dashboard': true,
 	'update-rulesets': true, 'core-rollback': true
 };

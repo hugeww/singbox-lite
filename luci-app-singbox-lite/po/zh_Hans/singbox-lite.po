@@ -139,6 +139,18 @@ msgstr "配置状态"
 msgid "Configuration saved. Restart the service to apply it."
 msgstr "配置已保存，重启服务后生效。"
 
+msgid "Configuration rebuilt and the service restarted."
+msgstr "配置已重建，服务已重启。"
+
+msgid "Configuration rebuilt; restart the service to apply."
+msgstr "配置已重建；重启服务后生效。"
+
+msgid "Configuration not rebuilt because the sing-box core is not installed."
+msgstr "未重建配置：sing-box 核心未安装。"
+
+msgid "Configuration not rebuilt for a first install; save the settings to generate it."
+msgstr "首次安装未重建配置；保存设置后会生成。"
+
 msgid "Connection closed"
 msgstr "连接已关闭"
 
@@ -447,6 +459,9 @@ msgstr "插件更新"
 
 msgid "Plugin updated to "
 msgstr "插件已更新到 "
+
+msgid "Plugin installed, but the configuration rebuild failed: "
+msgstr "插件已安装，但重建配置失败："
 
 msgid "Plugin version"
 msgstr "插件版本"
@@ -759,3 +774,111 @@ msgstr "在 dashboard 设置中填入后端 API 地址和此密钥，只需一�
 
 msgid "Use this URL and secret for a third-party Clash dashboard."
 msgstr "第三方 Clash 面板使用此地址和密钥。"
+
+msgid "Tailscale"
+msgstr "Tailscale"
+
+msgid "Join this router to a tailnet: reach home devices without port forwarding, route remote subnets, or use a tailnet exit node."
+msgstr "把路由器加入 tailnet：无需端口映射即可远程访问家里设备、访问对端子网，或使用 tailnet 出口节点。"
+
+msgid "The generated config adds endpoints[type=tailscale], a MagicDNS DNS server and preferred_by rules."
+msgstr "生成的配置会加入 endpoints[type=tailscale]、MagicDNS DNS 服务器和 preferred_by 规则。"
+
+msgid "Requires a sing-box 1.14.4+ binary built with with_tailscale/with_gvisor (official releases are)."
+msgstr "需要启用 with_tailscale/with_gvisor 编译的 sing-box 1.14.4+ 二进制（官方 release 默认包含）。"
+
+msgid "Save & Restart"
+msgstr "保存并重启"
+
+msgid "State"
+msgstr "状态"
+
+msgid "Disabled"
+msgstr "已禁用"
+
+msgid "Enabled; save the configuration"
+msgstr "已启用，请保存配置"
+
+msgid "Saved; restart the service"
+msgstr "已保存，请重启服务"
+
+msgid "Active"
+msgstr "运行中"
+
+msgid "Login URL"
+msgstr "登录链接"
+
+msgid "No login URL yet. Restart the service, then check Logs for \"Waiting for authentication\"."
+msgstr "暂无登录链接。重启服务后在「日志」中查找 “Waiting for authentication”。"
+
+msgid "Open login page"
+msgstr "打开登录页面"
+
+msgid "No login URL yet. Restart the service and check the log."
+msgstr "暂无登录链接，请重启服务后查看日志。"
+
+msgid "Enable Tailscale"
+msgstr "启用 Tailscale"
+
+msgid "When enabled, the router becomes a tailnet node. Traffic to tailnet peers, MagicDNS names and accepted subnet routes is routed into the endpoint before the private-IP direct rule."
+msgstr "启用后路由器成为 tailnet 节点。发往 tailnet 节点、MagicDNS 域名和已接受子网路由的流量会在「私有 IP 直连」规则之前送入该端点。"
+
+msgid "Auth key"
+msgstr "认证密钥"
+
+msgid "Recommended for unattended routers (tskey-auth-...). Leave empty to log in interactively through the URL printed in the core log."
+msgstr "无人值守路由器建议填写（tskey-auth-...）。留空则需通过核心日志打印的链接交互登录。"
+
+msgid "Hostname"
+msgstr "主机名"
+
+msgid "Name shown in the Tailscale admin console. Defaults to the system hostname."
+msgstr "在 Tailscale 管理台中显示的名称。默认为系统主机名。"
+
+msgid "System hostname"
+msgstr "系统主机名"
+
+msgid "State directory"
+msgstr "状态目录"
+
+msgid "Node identity and keys are stored here; it must survive reboots. Relative paths resolve under /etc/singbox-lite."
+msgstr "保存节点身份和密钥，必须持久化。相对路径基于 /etc/singbox-lite。"
+
+msgid "Accept subnet routes"
+msgstr "接受子网路由"
+
+msgid "Use subnets advertised by other tailnet nodes. Their ranges are matched by the preferred_by route rule."
+msgstr "使用其他 tailnet 节点通告的子网。其网段由 preferred_by 路由规则匹配。"
+
+msgid "Advertise routes"
+msgstr "通告路由"
+
+msgid "Comma-separated CIDRs advertised to the tailnet so peers can reach your LAN, e.g. 192.168.1.0/24. Approve them in the Tailscale admin console. The default route is not allowed here."
+msgstr "以逗号分隔的 CIDR，通告给 tailnet 供对端访问你的 LAN，例如 192.168.1.0/24。需在 Tailscale 管理台批准。此处不允许默认路由。"
+
+msgid "Advertise as exit node"
+msgstr "通告为出口节点"
+
+msgid "Let other tailnet devices send all their traffic through this router. Approve the exit node in the Tailscale admin console."
+msgstr "允许其他 tailnet 设备把全部流量经本路由器转发。需在 Tailscale 管理台批准。"
+
+msgid "Use exit node"
+msgstr "使用出口节点"
+
+msgid "Name or IP of a tailnet exit node. Only traffic routed to the endpoint uses it; enable the option below to make it the default egress."
+msgstr "tailnet 出口节点的名称或 IP。只有被路由到该端点的流量才会使用；打开下一项可把它设为默认出口。"
+
+msgid "Allow LAN access through exit node"
+msgstr "出口节点下仍可访问 LAN"
+
+msgid "Keep local LAN destinations reachable directly while the exit node is in use."
+msgstr "使用出口节点时，本机 LAN 目标仍直接可达。"
+
+msgid "Default egress via exit node"
+msgstr "默认出口走出口节点"
+
+msgid "Make the tailnet exit node the route final: traffic not matched by any rule set leaves through it instead of the default proxy group. Requires an exit node above."
+msgstr "把 tailnet 出口节点设为 route final：未被任何规则集匹配的流量改从它出去，而不是默认代理组。需先填写出口节点。"
+
+msgid "unknown error"
+msgstr "未知错误"

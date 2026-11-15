@@ -138,6 +138,18 @@ msgstr ""
 msgid "Configuration saved. Restart the service to apply it."
 msgstr ""
 
+msgid "Configuration rebuilt and the service restarted."
+msgstr "配置已重建，服务已重启。"
+
+msgid "Configuration rebuilt; restart the service to apply."
+msgstr "配置已重建；重启服务后生效。"
+
+msgid "Configuration not rebuilt because the sing-box core is not installed."
+msgstr "未重建配置：sing-box 核心未安装。"
+
+msgid "Configuration not rebuilt for a first install; save the settings to generate it."
+msgstr "首次安装未重建配置；保存设置后会生成。"
+
 msgid "Connection closed"
 msgstr ""
 
@@ -446,6 +458,9 @@ msgstr ""
 
 msgid "Plugin updated to "
 msgstr ""
+
+msgid "Plugin installed, but the configuration rebuild failed: "
+msgstr "插件已安装，但重建配置失败："
 
 msgid "Plugin version"
 msgstr ""
@@ -757,4 +772,112 @@ msgid "In the dashboard settings, enter the backend API URL and this secret once
 msgstr ""
 
 msgid "Use this URL and secret for a third-party Clash dashboard."
+msgstr ""
+
+msgid "Tailscale"
+msgstr ""
+
+msgid "Join this router to a tailnet: reach home devices without port forwarding, route remote subnets, or use a tailnet exit node."
+msgstr ""
+
+msgid "The generated config adds endpoints[type=tailscale], a MagicDNS DNS server and preferred_by rules."
+msgstr ""
+
+msgid "Requires a sing-box 1.14.4+ binary built with with_tailscale/with_gvisor (official releases are)."
+msgstr ""
+
+msgid "Save & Restart"
+msgstr ""
+
+msgid "State"
+msgstr ""
+
+msgid "Disabled"
+msgstr ""
+
+msgid "Enabled; save the configuration"
+msgstr ""
+
+msgid "Saved; restart the service"
+msgstr ""
+
+msgid "Active"
+msgstr ""
+
+msgid "Login URL"
+msgstr ""
+
+msgid "No login URL yet. Restart the service, then check Logs for \"Waiting for authentication\"."
+msgstr ""
+
+msgid "Open login page"
+msgstr ""
+
+msgid "No login URL yet. Restart the service and check the log."
+msgstr ""
+
+msgid "Enable Tailscale"
+msgstr ""
+
+msgid "When enabled, the router becomes a tailnet node. Traffic to tailnet peers, MagicDNS names and accepted subnet routes is routed into the endpoint before the private-IP direct rule."
+msgstr ""
+
+msgid "Auth key"
+msgstr ""
+
+msgid "Recommended for unattended routers (tskey-auth-...). Leave empty to log in interactively through the URL printed in the core log."
+msgstr ""
+
+msgid "Hostname"
+msgstr ""
+
+msgid "Name shown in the Tailscale admin console. Defaults to the system hostname."
+msgstr ""
+
+msgid "System hostname"
+msgstr ""
+
+msgid "State directory"
+msgstr ""
+
+msgid "Node identity and keys are stored here; it must survive reboots. Relative paths resolve under /etc/singbox-lite."
+msgstr ""
+
+msgid "Accept subnet routes"
+msgstr ""
+
+msgid "Use subnets advertised by other tailnet nodes. Their ranges are matched by the preferred_by route rule."
+msgstr ""
+
+msgid "Advertise routes"
+msgstr ""
+
+msgid "Comma-separated CIDRs advertised to the tailnet so peers can reach your LAN, e.g. 192.168.1.0/24. Approve them in the Tailscale admin console. The default route is not allowed here."
+msgstr ""
+
+msgid "Advertise as exit node"
+msgstr ""
+
+msgid "Let other tailnet devices send all their traffic through this router. Approve the exit node in the Tailscale admin console."
+msgstr ""
+
+msgid "Use exit node"
+msgstr ""
+
+msgid "Name or IP of a tailnet exit node. Only traffic routed to the endpoint uses it; enable the option below to make it the default egress."
+msgstr ""
+
+msgid "Allow LAN access through exit node"
+msgstr ""
+
+msgid "Keep local LAN destinations reachable directly while the exit node is in use."
+msgstr ""
+
+msgid "Default egress via exit node"
+msgstr ""
+
+msgid "Make the tailnet exit node the route final: traffic not matched by any rule set leaves through it instead of the default proxy group. Requires an exit node above."
+msgstr ""
+
+msgid "unknown error"
 msgstr ""

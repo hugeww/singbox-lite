@@ -6,6 +6,19 @@ import { parse_link, b64_decode_text, clash_to_outbound, strip_null } from 'sbx_
 
 const MAX_BODY = 5 * 1024 * 1024;
 
+/* 这些字段在 sing-box schema 里必须是对象；空对象/空数组都算脏字段。 */
+const OPTIONAL_OBJECT_FIELDS = [ 'transport', 'multiplex', 'tls', 'headers', 'obfs' ];
+
+/* 缺必填凭据的节点运行时不可用，部分类型（ss/tuic）还会让 check 失败；解析阶段直接跳过。 */
+const REQUIRED_CREDENTIALS = {
+	anytls: [ 'password' ],
+	hysteria2: [ 'password' ],
+	trojan: [ 'password' ],
+	tuic: [ 'uuid', 'password' ],
+	vless: [ 'uuid' ],
+	vmess: [ 'uuid' ]
+};
+
 function looks_json(s) {
 	let t = trim(s);
 	return substr(t, 0, 1) == '{' || substr(t, 0, 1) == '[';
@@ -33,14 +46,43 @@ function detect_format(body) {
 	return 'unknown';
 }
 
+/* 可选字段类型不对（如 "transport": []）或为空对象，一律清成 null 交给 strip_null 删除。 */
+function clean_optional_objects(o) {
+	for (let k in OPTIONAL_OBJECT_FIELDS) {
+		let v = o[k];
+		if (v == null) continue;
+		if (type(v) != 'object' || !length(keys(v))) o[k] = null;
+	}
+}
+
+function has_text(v) {
+	return type(v) == 'string' && length(trim(v)) > 0;
+}
+
+/* 未知类型不在表里，返回 true，保留原有「无法识别」告警行为。 */
+function has_required_credentials(out, t) {
+	if (t == 'shadowsocks') {
+		/* sing-box 接受 method=none 的无密码 SS 节点，其他加密方式必须有 password。 */
+		if (!has_text(out.method)) return false;
+		return lc(trim(out.method)) == 'none' || has_text(out.password);
+	}
+	let need = REQUIRED_CREDENTIALS[t];
+	if (!need) return true;
+	for (let k in need)
+		if (!has_text(out[k])) return false;
+	return true;
+}
+
 function node_from_outbound(out) {
 	if (!out || type(out) != 'object') return null;
 	let t = lc(out.type || '');
 	if (t == 'selector' || t == 'urltest' || t == 'direct' || t == 'block' || t == 'dns')
 		return null;
 	if (!out.server || !out.server_port) return null;
+	if (!has_required_credentials(out, t)) return null;
 	let copy = {};
 	for (let k in keys(out)) if (k != 'tag' && k != 'name') copy[k] = out[k];
+	clean_optional_objects(copy);
 	return strip_null({
 		name: out.tag || out.name || out.server,
 		type: out.type,
@@ -65,13 +107,24 @@ function parse_json_body(body) {
 	}
 	let nodes = [], warnings = [];
 	for (let item in list) {
-		let n = null;
+		let n = null, skipped = null;
 		if (item && item.type && item.server_port != null) n = node_from_outbound(item);
 		else if (item && item.type && (item.port != null || item.name)) {
 			let o = clash_to_outbound(item);
-			if (o) n = { name: item.name || o.server, type: o.type, server: o.server, server_port: o.server_port, outbound: o };
+			if (o) {
+				if (!o.server || !o.server_port)
+					skipped = sprintf('跳过缺少服务器地址的节点：%s', item.name || item.type || '');
+				else {
+					clean_optional_objects(o);
+					if (!has_required_credentials(o, lc(o.type || '')))
+						skipped = sprintf('跳过缺少凭据的节点：%s（%s:%s）', item.name || o.server || '', o.server || '', o.server_port);
+					else
+						n = { name: item.name || o.server, type: o.type, server: o.server, server_port: o.server_port, outbound: o };
+				}
+			}
 		}
 		if (n) push(nodes, n);
+		else if (skipped) push(warnings, skipped);
 		else if (!(item && item.type && match(lc(item.type), /^(selector|urltest|direct|block|dns)$/)))
 			push(warnings, '跳过无法识别的节点');
 	}
@@ -96,6 +149,11 @@ function parse_clash_body(body) {
 		if (!item || type(item) != 'object' || !item.type || !item.server) continue;
 		let out = clash_to_outbound(item);
 		if (!out) { push(warnings, sprintf('不支持的 Clash 协议：%s（%s）', item.type, item.name || '')); continue; }
+		clean_optional_objects(out);
+		if (!has_required_credentials(out, lc(out.type || ''))) {
+			push(warnings, sprintf('跳过缺少凭据的节点：%s（%s:%s）', item.name || out.server, out.server, out.server_port));
+			continue;
+		}
 		push(nodes, { name: item.name || item.server, type: out.type, server: out.server, server_port: out.server_port, outbound: out });
 	}
 	return { ok: length(nodes) > 0, nodes: nodes, warnings: warnings, error: length(nodes) ? null : '没有解析到 Clash 节点' };

@@ -12,8 +12,8 @@ const BUILTIN = {
 		order: 100,
 		default_target: 'direct',
 		inline_domains: [
-			'deepseek.com', 'chat.deepseek.com', 'moonshot.cn', 'kimi.com',
-			'kimi.moonshot.cn', 'tongyi.aliyun.com', 'qwen.ai', 'qwenlm.ai',
+			'deepseek.com', 'moonshot.cn', 'kimi.com',
+			'tongyi.aliyun.com', 'qwen.ai', 'qwenlm.ai',
 			'doubao.com', 'yiyan.baidu.com', 'wenxin.baidu.com',
 			'hunyuan.tencent.com', 'zhipuai.cn', 'bigmodel.cn',
 			'baichuan-ai.com', 'minimax.com', 'minimaxi.com',
