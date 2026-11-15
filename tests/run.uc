@@ -165,11 +165,25 @@ if (gen.ok) {
 	check(tun.dns_mode == 'hijack', 'tun hijacks DNS');
 	check(tun.listen == null && tun.listen_port == null, 'mixed listen fields removed');
 	check(index(tun.route_exclude_address_set || [], 'rs_builtin_cn_1') >= 0, 'CN geoip rule set excluded from tun routes');
-	check(gen.config.dns.servers[0].type == 'udp' && gen.config.dns.servers[0].detour == 'direct', 'direct DNS bypasses the proxy detour');
+	check(gen.config.dns.servers[0].type == 'udp' && gen.config.dns.servers[0].detour == 'direct-dns', 'direct DNS bypasses the proxy detour');
 	check(gen.config.dns.servers[1].tls && gen.config.dns.servers[1].tls.server_name == 'cloudflare-dns.com', 'proxy DoH sets tls server_name');
 	let route = gen.config.route.rules;
 	check(route[3].domain_suffix && route[3].outbound == 'us', 'custom rule before built-ins');
 	check(route[length(route) - 1].rule_set && route[length(route) - 1].outbound == 'default', 'built-in fallback target');
+	let dnsDirect = null;
+	for (let o in gen.config.outbounds) if (o.tag == 'direct-dns') dnsDirect = o;
+	check(dnsDirect != null && dnsDirect.tcp_fast_open === true, 'direct DNS detour target is not an empty direct outbound');
+
+	cfg.inbound.proxy = '1';
+	cfg.inbound.proxy_listen = '0.0.0.0';
+	cfg.inbound.proxy_port = '7890';
+	let genProxy = build_config(cfg, { nodes: nodes, warnings: [] });
+	cfg.inbound.proxy = '0';
+	check(genProxy.ok && length(genProxy.config.inbounds) == 2, 'optional proxy inbound added');
+	if (genProxy.ok) {
+		let mixedOut = genProxy.config.inbounds[1];
+		check(mixedOut.type == 'mixed' && mixedOut.listen_port == 7890, 'proxy inbound listens on 7890');
+	}
 	cfg.inbound.exclude_cn = '0';
 	let genNoExclude = build_config(cfg, { nodes: nodes, warnings: [] });
 	check(genNoExclude.ok && !genNoExclude.config.inbounds[0].route_exclude_address_set, 'exclude_cn=0 disables the CN pre-match exclusion');

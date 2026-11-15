@@ -111,7 +111,7 @@ function build_config(cfg, collected) {
 	if (!length(nodes)) push(errors, '没有可用节点：请先添加订阅或手动节点');
 
 	let egress = cfg.egress || {};
-	let outbounds = [{ type: 'direct', tag: 'direct' }];
+	let outbounds = [ { type: 'direct', tag: 'direct' }, { type: 'direct', tag: 'direct-dns', tcp_fast_open: true } ];
 	let group_tags = { direct: true };
 
 	/* auto */
@@ -249,7 +249,7 @@ function build_config(cfg, collected) {
 	if (!group_tags.default) push(errors, '默认出口组不存在：没有可用节点');
 	if (length(errors)) return { ok: false, errors: errors, warnings: warnings };
 
-	let dns_servers = [{ type: 'udp', tag: 'dns-direct', server: '223.5.5.5', detour: 'direct' }];
+	let dns_servers = [{ type: 'udp', tag: 'dns-direct', server: '223.5.5.5', detour: 'direct-dns' }];
 	if (dns_mode != 'system')
 		push(dns_servers, {
 			type: 'https', tag: 'dns-proxy', server: '1.1.1.1', detour: 'default',
@@ -316,10 +316,31 @@ function build_config(cfg, collected) {
 		}
 	}
 
+	let inbounds = [ inbound ];
+	if (cfg.inbound && cfg.inbound.proxy == '1') {
+		let plisten = trim(cfg.inbound.proxy_listen || '0.0.0.0');
+		if (!length(plisten)) plisten = '0.0.0.0';
+		let pport = int(cfg.inbound.proxy_port || 7890);
+		if (pport < 1 || pport > 65535) {
+			push(warnings, sprintf('代理端口 %d 无效，已回退到 7890', pport));
+			pport = 7890;
+		}
+		let mixed = { type: 'mixed', tag: 'mixed-in', listen: plisten, listen_port: pport };
+		if (cfg.inbound.auth == '1') {
+			if (!length(cfg.inbound.username || '') || !length(cfg.inbound.password || '')) {
+				push(warnings, '已启用入站认证但用户名/密码为空，使用默认 admin/admin');
+				mixed.users = [ { username: 'admin', password: 'admin' } ];
+			} else {
+				mixed.users = [ { username: cfg.inbound.username, password: cfg.inbound.password } ];
+			}
+		}
+		push(inbounds, mixed);
+	}
+
 	let config = {
 		log: { level: (cfg.main && cfg.main.log_level) || 'info', timestamp: true },
 		dns: dns,
-		inbounds: [ inbound ],
+		inbounds: inbounds,
 		outbounds: outbounds,
 		route: {
 			rules: route_rules,
